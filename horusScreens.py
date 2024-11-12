@@ -153,12 +153,13 @@ def intro_Screen():
     
 def main_Screen():
 
-    global root, frames
+    global root, frames, routines
 
     teclas_in = "teclado_espiao/teclas_in"
     topic_handlers = {}
 
     frames = {}
+    routines = {}
 
     def set_topic_handler( topic, func):
         topic_handlers[topic] = func
@@ -320,6 +321,7 @@ def main_Screen():
     rotinas_Lista = hf.ScrollableFrame(routine_frame, width=400, height=550)
     rotinas_Lista.place(x = 115,y = 85)
 
+
     rotinas_Detalhes = tk.Frame(routine_frame, width=300, height=250, bd=1, relief="solid", bg="#242323")
     rotinas_Detalhes.pack_propagate(False)
 
@@ -332,6 +334,24 @@ def main_Screen():
     rotinas_botoes = tk.Frame(routine_frame, width=300, height=250, bg="#252525")
     rotinas_botoes.place(x = 615, y = 388)
     
+    def build_routine_list():
+        global routines
+        
+        for child in rotinas_Lista.scrollable_frame.winfo_children():
+            child.destroy()+
+
+        for routine in routines:
+            def show_details():
+                insere_texto(rotinas_Detalhes_Text, routines[routine]["command"])
+        
+            button = tk.Button(
+                    rotinas_Lista.scrollable_frame,
+                    text= routine,
+                    command=show_details,
+                    **button_Style_Sidebar
+                )
+            button.pack(pady=5, padx=0, fill="x", expand=True)
+
     create_routine_button = tk.Button(rotinas_botoes, text="Criar", command=lambda: (hf.on_Click(), carrega_frame("CreateRoutine")), **button_Style_Sidebar)
     create_routine_button.place(x=0, y=0, width=300, height=70)
     create_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
@@ -374,6 +394,27 @@ def main_Screen():
 
     command_Text = tk.Text(create_routine_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid", state="disable")
     command_Text.place(x = 515, y = 250, width = 400, height = 300)
+    
+    def adicionar_rotina(nome, desc, cmd):
+        global routines
+        
+        routines[nome] = {"name": nome, "desc": desc, "command": cmd}
+        build_routine_list() 
+
+    def submit_text():
+        confirm("Tem Certeza?","Sim","Não")
+        if Confirmar:
+            nome = criar_Nome.get("1.0", tk.END).strip()
+            descricao = criar_Descricao.get("1.0", tk.END).strip()
+            command = command_Text.get("1.0", tk.END).strip()
+            adicionar_rotina(nome, descricao, command)
+            insere_texto(criar_Nome, "")
+            criar_Nome.config(state="normal")
+            insere_texto(criar_Descricao, "")
+            criar_Descricao.config(state="normal")
+            insere_texto(command_Text, "")
+            command_Text.config(state="normal")
+            carrega_frame("Routine")
 
     confirm_routine_button = tk.Button(create_routine_frame, text = "Criar", command=lambda: (hf.on_Click(), submit_text()), width = 10, height = 2, **button_Style_Sidebar)
     confirm_routine_button.place(x=715,y=575, width= 200, height= 50)
@@ -426,15 +467,15 @@ def main_Screen():
 
         button = tk.Button(gravar, text="START", width = 10, height = 2, **button_Style)
         button.place(x=800, y=350, width = 300 , height = 150)
-
-        keyboards["Routine"].bind_keys()
-        keyboards["Routine"].set_mode("typing", action_handler_factory(texto_Dump_Frame_Text, texto_Formatado_Frame_Text))
         
         def toggle_record():
             global state
             if state:
+                insere_texto(command_Text, texto_Dump_Frame_Text.get("1.0", "end"))
                 destruir()
             else:
+                keyboards["Routine"].bind_keys()
+                keyboards["Routine"].set_mode("typing", action_handler_factory(texto_Dump_Frame_Text, texto_Formatado_Frame_Text))
                 button.config(text="STOP", bg="#a1392d",activebackground="#943a2f")
                 state = True
         
@@ -485,35 +526,11 @@ def main_Screen():
             if f != frame:
                 frames[f].place_forget()
 
-
-    def submit_text():
-        global NameText
-        global ContextText
-        global Confirmar
-        confirm("Tem Certeza?","Sim","Não")
-        if Confirmar:
-            NameText = criar_Nome.get("1.0", tk.END).strip()
-            ContextText = criar_Contexto.get("1.0", tk.END).strip()
-            adicionar_Item()
-            carrega_frame("Routine")
-
-    def adicionar_Item():
-        global NameText
-        global ContextText
-        if NameText:
-            button = tk.Button(
-                rotinas_Lista.scrollable_frame,
-                text=NameText,
-                command=lambda c=ContextText: mostrar_contexto(c),
-                **button_Style_Sidebar
-            )
-            button.pack(pady=5, padx=0, fill="x", expand=True)
-
-    def mostrar_contexto(contexto):
-        rotinas_Detalhes_Text.config(state="normal")
-        rotinas_Detalhes_Text.delete('1.0', tk.END)
-        rotinas_Detalhes_Text.insert(tk.END, contexto)
-        rotinas_Detalhes_Text.config(state="disabled")
+    def insere_texto(widget, contexto):
+        widget.config(state="normal")
+        widget.delete('1.0', tk.END)
+        widget.insert(tk.END, contexto)
+        widget.config(state="disabled")
 
     carrega_frame("Home")
 
