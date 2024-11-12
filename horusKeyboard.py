@@ -25,9 +25,7 @@ class QWERTYKeyboard:
     }
 
     # Key type buffer for routine recording
-    buffer = []
     last_action_timestamp = -1
-    recording = False
     mode = "listen"
 
     def __init__(self, root, parent, x_start, y_start):
@@ -122,6 +120,7 @@ class QWERTYKeyboard:
         
         if self.mode == "typing":
             self.handler_func = param
+            self.last_action_timestamp = None
     
     def bind_action_handler(self, handler_func):
         self.handler_func = handler_func
@@ -129,21 +128,21 @@ class QWERTYKeyboard:
     def register_action(self, label, mode):
         
         now = datetime.now()
-        elapsed_time = now - self.last_action_timestamp
-        if elapsed_time.seconds >= 1:
-            wait_action = ("WAIT", elapsed_time.seconds)
-            self.buffer.append(wait_action)
-        
-        action = (label, mode)
-        self.buffer.append(action)
-        
-        self.last_action_timestamp = now
+
+        if self.last_action_timestamp == None:
+            self.last_action_timestamp = now
+
+        elapsed_time = "%.2f" % ((now - self.last_action_timestamp).total_seconds() * 1000)
+
+        action = (label, mode, elapsed_time)
+
         self.action_registered[label] = (mode, now)
         if self.handler_func != None:
             self.handler_func(action)
 
+        self.last_action_timestamp = now
+
     def press_key(self, label):
-        self.highlight_key(label)
         self.register_action(label, "PRESSED")
         self.current_pressed.append(label)
 
@@ -159,7 +158,8 @@ class QWERTYKeyboard:
             self.root.after_cancel(self.key_timers[label])
             del self.key_timers[label]
         if label not in self.current_pressed:
-            self.press_key(label)
+            self.highlight_key(label)
+        self.press_key(label)
 
     def on_key_release(self, event):
         label = event.keysym.upper()

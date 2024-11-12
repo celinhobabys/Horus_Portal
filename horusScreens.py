@@ -10,7 +10,12 @@ global Confirmar
 global mqtt_client
 mqtt_client = None
 
+teclas_in = "teclado_espiao/teclas_in"
+teclas_out = "teclado_espiao/teclas_out"
+routine_topic = "teclado_espiao/routine"
+
 keyboards = {}
+
 def action_handler_factory(text_box, f_text_box):
     def handle_action(action):
         print(action)
@@ -153,13 +158,14 @@ def intro_Screen():
     
 def main_Screen():
 
-    global root, frames, routines
+    global root, frames, routines, selected_routine
 
-    teclas_in = "teclado_espiao/teclas_in"
     topic_handlers = {}
 
     frames = {}
     routines = {}
+
+    selected_routine = None
 
     def set_topic_handler( topic, func):
         topic_handlers[topic] = func
@@ -183,13 +189,13 @@ def main_Screen():
         global mqtt_client
         print("starting mqtt...")
         mqtt_client = mqtt.Client()
-        #mqtt_client.tls_set(certifi.where())
-        #mqtt_client.username_pw_set(username="aula", password= "zowmad-tavQez")
+        mqtt_client.tls_set(certifi.where())
+        mqtt_client.username_pw_set(username="aula", password= "zowmad-tavQez")
         mqtt_client.on_connect = on_connect
         mqtt_client.on_message = on_message
 
-        #mqtt_client.connect("mqtt.janks.dev.br", 8883, 60)
-        mqtt_client.connect("mqtt.janks.dev.br", 1883, 70)
+        mqtt_client.connect("mqtt.janks.dev.br", 8883, 60)
+        #mqtt_client.connect("mqtt.janks.dev.br", 1883, 70)
         step_mqtt()
 
     def step_mqtt():
@@ -338,10 +344,13 @@ def main_Screen():
         global routines
         
         for child in rotinas_Lista.scrollable_frame.winfo_children():
-            child.destroy()+
+            child.destroy()
 
         for routine in routines:
             def show_details():
+                global selected_routine
+                
+                selected_routine = routine
                 insere_texto(rotinas_Detalhes_Text, routines[routine]["command"])
         
             button = tk.Button(
@@ -357,12 +366,28 @@ def main_Screen():
     create_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
     create_routine_button.bind("<Leave>", hf.on_Leave_Sidebar)
 
+    #schedule_routine_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
+    #schedule_routine_frame.place(x=250,y = 0)
+
     schedule_routine_button = tk.Button(rotinas_botoes, text="Agendar", command=lambda: (hf.on_Click(), carrega_frame("ScheduleRoutine")), **button_Style_Sidebar)
     schedule_routine_button.place(x=0, y=90, width=300, height=70)
     schedule_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
     schedule_routine_button.bind("<Leave>", hf.on_Leave_Sidebar)
 
-    play_routine_button = tk.Button(rotinas_botoes, text="Play", command=lambda: (hf.on_Click(), carrega_frame("PlayRoutine")), **button_Style_Sidebar)
+    def play_routine():
+        global routines, selected_routine
+
+        print(selected_routine)
+
+        if selected_routine == None:
+            return
+
+        routine = routines[selected_routine]
+        routine_msg = f"({selected_routine}, NOW, {routine['command']})"
+
+        mqtt_client.publish(routine_topic, routine_msg)
+
+    play_routine_button = tk.Button(rotinas_botoes, text="Play", command=lambda: (hf.on_Click(), play_routine()), **button_Style_Sidebar)
     play_routine_button.place(x=0, y=180, width=300, height=70)
     play_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
     play_routine_button.bind("<Leave>", hf.on_Leave_Sidebar)
@@ -489,8 +514,11 @@ def main_Screen():
     record_routine_button.bind("<Leave>", hf.on_Leave_Dominar)
 
     #Estilos dos Logs
+    # FAZER A TELA DE LOG DENTRO DESTE FRAME (a parte de trocar de pagina e etc ja esta pronta)
+    log_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
+    log_frame.place(x=250,y = 0)
 
-
+    frames["Log"] = log_frame
 
     #Botoes
 
