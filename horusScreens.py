@@ -11,6 +11,53 @@ global mqtt_client
 mqtt_client = None
 
 keyboards = {}
+def action_handler_factory(text_box, f_text_box):
+    def handle_action(action):
+        print(action)
+        if action[1] == "PRESSED":
+            text_box.insert("end", str(action) + " ")
+        elif action[1] == "RELEASED":
+            text_box.insert("end", str(action) + " ")
+
+            letter = action[0]
+            
+            if letter == "SPACE":
+                letter = " "
+            if letter == "CONTROL":
+                letter = ""
+
+            f_text_box.insert("end", letter)
+        else:
+            print(f"ERROR {action}")
+    return handle_action
+    
+def key_listener_factory(keyboard, text_box, f_text_box): 
+    def listener(msg):
+        msg = msg.payload.decode('utf-8')
+        print(msg)
+        msg = msg.strip("()")
+        msg = msg.replace(" ", "")
+        msg = msg.replace("'", "")
+        action = msg.split(",")
+        print(action)
+        if action[1] == "PRESSED":
+            keyboard.highlight_key(action[0])
+            text_box.insert("end", str(action) + " ")
+        elif action[1] == "RELEASED":
+            keyboard.reset_key(action[0])
+            text_box.insert("end", str(action) + " ")
+
+            letter = action[0]
+            
+            if letter == "SPACE":
+                letter = " "
+            if letter == "CONTROL":
+                letter = ""
+
+            f_text_box.insert("end", letter)
+        else:
+            print(f"ERROR {action}")
+    return listener
 
 def confirm(text, text_Y, text_N):
     global Confirmar
@@ -65,66 +112,6 @@ def confirm(text, text_Y, text_N):
 
     confirmW.wait_window(confirmW)
 
-def gravar():
-
-    global state, root
-    state = False
-
-    def destruir():
-        gravar.destroy()
-    
-    gravar = tk.Toplevel()
-    gravar.configure(bg='#2e2b2b')
-    gravar.resizable(False, False)
-    gravar.overrideredirect(True)
-    gravar.pack_propagate(False)
-    gravar.attributes("-topmost", True)
-    gravar.grab_set()
-    hf.centralize_Window(gravar,1100,500)
-
-    button_Style = {
-        "font": ("Anonymous Pro", 16, "bold"),
-        "bg": "#4CAF50",
-        "fg": "white",
-        "bd": 0,
-        "activebackground": "#45A049",
-        "activeforeground": "white"
-    }
-
-    Keyboard_Frame = tk.Frame(gravar, bd=1, relief="solid", bg="#242323")
-    Keyboard_Frame.place(x=0,y=0, width=800,height= 350)
-
-    keyboards["Routine"] = QWERTYKeyboard(gravar, Keyboard_Frame, 100, 10)
-
-    texto_Formatado_Frame = tk.Frame(gravar, bd=1, relief="solid", bg="#242323")
-    texto_Formatado_Frame.place(x=800,y=0, width=300,height= 350)
-
-    texto_Dump_Frame = tk.Frame(gravar, bd=1, relief="solid", bg="#242323")
-    texto_Dump_Frame.place(x=0,y=350, width=800,height= 150)
-
-    texto_Formatado_Frame_Text = tk.Text(texto_Formatado_Frame, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
-    texto_Formatado_Frame_Text.pack(fill="both",expand=True)
-    texto_Formatado_Frame_Text.config(state="normal")
-
-    texto_Dump_Frame_Text = tk.Text(texto_Dump_Frame, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
-    texto_Dump_Frame_Text.pack(fill="both",expand=True)
-    texto_Dump_Frame_Text.config(state="normal")
-
-    button = tk.Button(gravar, text="Gravar", width = 10, height = 2, **button_Style)
-    button.place(x=800, y=350, width = 300 , height = 150)
-    
-    def toggle_record():
-        global state
-        if state:
-            destruir()
-        else:
-            button.config(text="Parar", bg="#a1392d",activebackground="#943a2f")
-            state = True
-    
-    button.config(command=toggle_record)
-
-    gravar.wait_window(gravar)
-
 def intro_Screen():
     
     font_path = "resources/AnonymousPro-Bold.ttf"
@@ -166,10 +153,12 @@ def intro_Screen():
     
 def main_Screen():
 
-    global root
+    global root, frames
 
     teclas_in = "teclado_espiao/teclas_in"
     topic_handlers = {}
+
+    frames = {}
 
     def set_topic_handler( topic, func):
         topic_handlers[topic] = func
@@ -193,12 +182,13 @@ def main_Screen():
         global mqtt_client
         print("starting mqtt...")
         mqtt_client = mqtt.Client()
-        mqtt_client.tls_set(certifi.where())
-        mqtt_client.username_pw_set(username="aula", password= "zowmad-tavQez")
+        #mqtt_client.tls_set(certifi.where())
+        #mqtt_client.username_pw_set(username="aula", password= "zowmad-tavQez")
         mqtt_client.on_connect = on_connect
         mqtt_client.on_message = on_message
 
-        mqtt_client.connect("mqtt.janks.dev.br", 8883, 60)
+        #mqtt_client.connect("mqtt.janks.dev.br", 8883, 60)
+        mqtt_client.connect("mqtt.janks.dev.br", 1883, 70)
         step_mqtt()
 
     def step_mqtt():
@@ -209,12 +199,12 @@ def main_Screen():
         root.after(20, step_mqtt)
 
     root = tk.Tk()    
-    root.configure(bg='green')
+    root.configure(bg='#252525')
     root.title("Horus")
     root.resizable(False, False)
 
     icon_path = "icon.ico"
-    root.iconbitmap(icon_path)
+    #root.iconbitmap(icon_path)
 
     hf.centralize_Window(root)
 
@@ -231,18 +221,24 @@ def main_Screen():
 
     #Logica de estados
     
+    def paint_frames(color):
+        global frames
+
+        for frame in frames:
+            frames[frame].config(bg=color)
+
     def change_state():
         global Dom
         global Confirmar
         if Dom:
-            user_Area.config(bg='#252525')
+            paint_frames('#252525')
             rotinas_botoes.config(bg='#252525')
             Dom = False
             hf.on_Click_Dom_Off()
         else:
             confirm("Tem Certeza?","Sim","Não")
             if Confirmar:
-                user_Area.config(bg='#502525')
+                paint_frames('#502525')
                 rotinas_botoes.config(bg='#502525')
                 Dom = True
                 hf.on_Click_Dom_On()
@@ -274,12 +270,19 @@ def main_Screen():
     sidebar.pack(side="left", fill="y")
     sidebar.pack_propagate(False)
 
-    user_Area = tk.Frame(root, width=1030, height=720, bg="#252525")
-    user_Area.place(x=250,y = 0)
-
     #Estilos da Home
 
-    home_Principal = tk.Frame(user_Area, width=801, height=550, bd=1, relief="solid", bg="#3a3a3a")
+    home_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
+    home_frame.place(x=250,y = 0)
+
+    frames["Home"] = home_frame
+
+    button_dominate = tk.Button(home_frame, text="Dominar", command=change_state, width = 10, height = 2, **button_Style_Domidar)
+    button_dominate.place(relx=0.5, y=15, anchor="n")
+    button_dominate.bind("<Enter>", hf.on_Enter_Dominar)
+    button_dominate.bind("<Leave>", hf.on_Leave_Dominar)
+
+    home_Principal = tk.Frame(home_frame, width=801, height=550, bd=1, relief="solid", bg="#3a3a3a")
     home_Principal.place(x = 115,y = 85)
 
     home_Principal_GUI_userInput = tk.Frame(home_Principal, width=800, height=50, bd=1, relief="solid", bg="#000")
@@ -305,68 +308,144 @@ def main_Screen():
     keyboards["Home"] = QWERTYKeyboard(root, home_Principal_GUI_keyboardInput_realTime,110, 20)
     keyboards["Home"].set_mode("listen")
 
-
-    def key_listener_factory(keyboard, text_box, f_text_box): 
-        def listener(msg):
-            msg = msg.payload.decode('utf-8')
-            print(msg)
-            msg = msg.strip("()")
-            msg = msg.replace(" ", "")
-            msg = msg.replace("'", "")
-            action = msg.split(",")
-            print(action)
-            if action[1] == "PRESSED":
-                keyboard.highlight_key(action[0])
-                text_box.insert("end", str(action) + " ")
-            elif action[1] == "RELEASED":
-                keyboard.reset_key(action[0])
-                text_box.insert("end", str(action) + " ")
-
-                letter = action[0]
-                
-                if letter == "SPACE":
-                    letter = " "
-                if letter == "CONTROL":
-                    letter = ""
-
-                f_text_box.insert("end", letter)
-            else:
-                print(f"ERROR {action}")
-        return listener
-
     set_topic_handler(teclas_in, key_listener_factory(keyboards["Home"], home_Principal_GUI_keyboardInput_dump_Text, home_Principal_GUI_keyboardInput_format_Text))
 
     #Estilo das Rotinas
-    
-    rotinas_Lista = hf.ScrollableFrame(user_Area, width=400, height=550)
+
+    routine_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
+    routine_frame.place(x=250,y = 0)
+
+    frames["Routine"] = routine_frame
+
+    rotinas_Lista = hf.ScrollableFrame(routine_frame, width=400, height=550)
     rotinas_Lista.place(x = 115,y = 85)
 
-    rotinas_Detalhes = tk.Frame(user_Area, width=300, height=250, bd=1, relief="solid", bg="#242323")
+    rotinas_Detalhes = tk.Frame(routine_frame, width=300, height=250, bd=1, relief="solid", bg="#242323")
     rotinas_Detalhes.pack_propagate(False)
+
     rotinas_Detalhes_Text = tk.Text(rotinas_Detalhes, font=("Anonymous Pro", 11), bg="#252525", fg="white", highlightthickness=0, bd=0)
     rotinas_Detalhes_Text.pack(fill="both",expand=True)
     rotinas_Detalhes_Text.config(state="disabled")
+
     rotinas_Detalhes.place(x=615,y=85)
 
-    rotinas_botoes = tk.Frame(user_Area, width=300, height=250, bg="#252525")
+    rotinas_botoes = tk.Frame(routine_frame, width=300, height=250, bg="#252525")
     rotinas_botoes.place(x = 615, y = 388)
     
+    create_routine_button = tk.Button(rotinas_botoes, text="Criar", command=lambda: (hf.on_Click(), carrega_frame("CreateRoutine")), **button_Style_Sidebar)
+    create_routine_button.place(x=0, y=0, width=300, height=70)
+    create_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
+    create_routine_button.bind("<Leave>", hf.on_Leave_Sidebar)
+
+    schedule_routine_button = tk.Button(rotinas_botoes, text="Agendar", command=lambda: (hf.on_Click(), carrega_frame("ScheduleRoutine")), **button_Style_Sidebar)
+    schedule_routine_button.place(x=0, y=90, width=300, height=70)
+    schedule_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
+    schedule_routine_button.bind("<Leave>", hf.on_Leave_Sidebar)
+
+    play_routine_button = tk.Button(rotinas_botoes, text="Play", command=lambda: (hf.on_Click(), carrega_frame("PlayRoutine")), **button_Style_Sidebar)
+    play_routine_button.place(x=0, y=180, width=300, height=70)
+    play_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
+    play_routine_button.bind("<Leave>", hf.on_Leave_Sidebar)
+
     #Estilo da Criar - Texto
 
-    criar_Nome_Label = tk.Label(user_Area, text="Nome: ", font=("Anonymous Pro", 20, "bold"), bg = "#252525", fg = "white")
+    create_routine_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
+    create_routine_frame.place(x=250,y = 0)
+
+    frames["CreateRoutine"] = create_routine_frame
+
+    criar_Nome_Label = tk.Label(create_routine_frame, text="Nome: ", font=("Anonymous Pro", 20, "bold"), bg = "#252525", fg = "white")
     criar_Nome_Label.place(x=115, y = 85)
 
-    criar_Nome = tk.Text(user_Area, font=("Anonymous Pro", 16), bg="#252525", fg="white", highlightthickness=0, bd=0)
+    criar_Nome = tk.Text(create_routine_frame, font=("Anonymous Pro", 16), bg="#252525", fg="white", highlightthickness=0, bd=0)
     criar_Nome.place(x=200, y = 90, width = 700, height = 35)
 
-    criar_Nome_Linha = tk.Frame(user_Area, bg = "#000")
+    criar_Nome_Linha = tk.Frame(create_routine_frame, bg = "#000")
     criar_Nome_Linha.place(x=200, y = 115, width = 700, height = 2)
 
-    criar_Contexto_Label = tk.Label(user_Area, text="Contexto: ", font=("Anonymous Pro", 20, "bold"), bg = "#252525", fg = "white")
-    criar_Contexto_Label.place(x=115, y = 200)
+    criar_Descricao_Label = tk.Label(create_routine_frame, text="Descrição: ", font=("Anonymous Pro", 20, "bold"), bg = "#252525", fg = "white")
+    criar_Descricao_Label.place(x=115, y = 200)
 
-    criar_Contexto = tk.Text(user_Area, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid")
-    criar_Contexto.place(x = 115, y = 250, width = 800, height = 300)
+    criar_Descricao = tk.Text(create_routine_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid")
+    criar_Descricao.place(x = 115, y = 250, width = 400, height = 300)
+
+    command_Label = tk.Label(create_routine_frame, text="Rotina: ", font=("Anonymous Pro", 20, "bold"), bg = "#252525", fg = "white")
+    command_Label.place(x=515, y=200)
+
+    command_Text = tk.Text(create_routine_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid", state="disable")
+    command_Text.place(x = 515, y = 250, width = 400, height = 300)
+
+    confirm_routine_button = tk.Button(create_routine_frame, text = "Criar", command=lambda: (hf.on_Click(), submit_text()), width = 10, height = 2, **button_Style_Sidebar)
+    confirm_routine_button.place(x=715,y=575, width= 200, height= 50)
+    confirm_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
+    confirm_routine_button.bind("<Leave>", hf.on_Leave_Sidebar)
+
+    def gravar_screen():
+        global state, root
+        state = False
+
+        def destruir():
+            gravar.destroy()
+        
+        gravar = tk.Toplevel()
+        gravar.configure(bg='#2e2b2b')
+        gravar.resizable(False, False)
+        #gravar.overrideredirect(True)
+        gravar.pack_propagate(False)
+        gravar.attributes("-topmost", True)
+        gravar.grab_set()
+        hf.centralize_Window(gravar,1100,500)
+
+        button_Style = {
+            "font": ("Anonymous Pro", 16, "bold"),
+            "bg": "#4CAF50",
+            "fg": "white",
+            "bd": 0,
+            "activebackground": "#45A049",
+            "activeforeground": "white"
+        }
+
+        Keyboard_Frame = tk.Frame(gravar, bd=1, relief="solid", bg="#242323")
+        Keyboard_Frame.place(x=0,y=0, width=800,height= 350)
+
+        keyboards["Routine"] = QWERTYKeyboard(gravar, Keyboard_Frame, 100, 10)
+
+        texto_Formatado_Frame = tk.Frame(gravar, bd=1, relief="solid", bg="#242323")
+        texto_Formatado_Frame.place(x=800,y=0, width=300,height= 350)
+
+        texto_Dump_Frame = tk.Frame(gravar, bd=1, relief="solid", bg="#242323")
+        texto_Dump_Frame.place(x=0,y=350, width=800,height= 150)
+
+        texto_Formatado_Frame_Text = tk.Text(texto_Formatado_Frame, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
+        texto_Formatado_Frame_Text.pack(fill="both",expand=True)
+        texto_Formatado_Frame_Text.config(state="normal")
+
+        texto_Dump_Frame_Text = tk.Text(texto_Dump_Frame, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
+        texto_Dump_Frame_Text.pack(fill="both",expand=True)
+        texto_Dump_Frame_Text.config(state="normal")
+
+        button = tk.Button(gravar, text="START", width = 10, height = 2, **button_Style)
+        button.place(x=800, y=350, width = 300 , height = 150)
+
+        keyboards["Routine"].bind_keys()
+        keyboards["Routine"].set_mode("typing", action_handler_factory(texto_Dump_Frame_Text, texto_Formatado_Frame_Text))
+        
+        def toggle_record():
+            global state
+            if state:
+                destruir()
+            else:
+                button.config(text="STOP", bg="#a1392d",activebackground="#943a2f")
+                state = True
+        
+        button.config(command=toggle_record)
+
+        gravar.wait_window(gravar)
+    
+    record_routine_button = tk.Button(create_routine_frame, text = "Gravar", command=lambda: (hf.on_Click(), gravar_screen()), width = 10, height = 2, **button_Style_Domidar,)
+    record_routine_button.place(x=465,y=575, width= 200, height= 50)
+    record_routine_button.bind("<Enter>", hf.on_Enter_Dominar)
+    record_routine_button.bind("<Leave>", hf.on_Leave_Dominar)
 
     #Estilos dos Logs
 
@@ -374,111 +453,38 @@ def main_Screen():
 
     #Botoes
 
-    button1 = tk.Button(sidebar, text="Home", command=lambda: (hf.on_Click(), carregar_Home()), **button_Style_Sidebar)
-    button1.pack(pady=10, padx=10, fill="x")
+    home_button = tk.Button(sidebar, text="Home", command=lambda: (hf.on_Click(), carrega_frame("Home")), **button_Style_Sidebar)
+    home_button.pack(pady=10, padx=10, fill="x")
 
-    button2 = tk.Button(sidebar, text="Rotinas", command=lambda: (hf.on_Click(), carregar_Rotinas()), **button_Style_Sidebar)
-    button2.pack(pady=10, padx=10, fill="x")
+    routine_button = tk.Button(sidebar, text="Rotinas", command=lambda: (hf.on_Click(), carrega_frame("Routine")), **button_Style_Sidebar)
+    routine_button.pack(pady=10, padx=10, fill="x")
 
-    button3 = tk.Button(sidebar, text="Logs", command=lambda: (hf.on_Click(), carregar_Logs()), **button_Style_Sidebar)
-    button3.pack(pady=10, padx=10, fill="x")
+    log_button = tk.Button(sidebar, text="Logs", command=lambda: (hf.on_Click(), carrega_frame("Log")), **button_Style_Sidebar)
+    log_button.pack(pady=10, padx=10, fill="x")
 
-    button4 = tk.Button(sidebar, text="Configurações", command=lambda: (hf.on_Click(), carregar_configuracoes()), **button_Style_Sidebar)
-    button4.pack(pady=10, padx=10, fill="x")
-
-    button5 = tk.Button(user_Area, text="Dominar", command=change_state, width = 10, height = 2, **button_Style_Domidar)
-    button5.place(relx=0.5, y=15, anchor="n")
-
-    button6 = tk.Button(rotinas_botoes, text="Criar", command=lambda: (hf.on_Click(), carregar_Criar()), **button_Style_Sidebar)
-    button6.place(x=0, y=0, width=300, height=70)
-
-    button7 = tk.Button(rotinas_botoes, text="Agendar", command=lambda: (hf.on_Click(), carregar_configuracoes()), **button_Style_Sidebar)
-    button7.place(x=0, y=90, width=300, height=70)
-
-    button8 = tk.Button(rotinas_botoes, text="Play", command=lambda: (hf.on_Click(), carregar_configuracoes()), **button_Style_Sidebar)
-    button8.place(x=0, y=180, width=300, height=70)
-
-    button9 = tk.Button(user_Area, text = "Criar", command=lambda: (hf.on_Click(), submit_text()), width = 10, height = 2, **button_Style_Sidebar)
-    button9.place(x=715,y=575, width= 200, height= 50)
-
-    button10 = tk.Button(user_Area, text = "Gravar", command=lambda: (hf.on_Click(), gravar()), width = 10, height = 2, **button_Style_Domidar,)
-    button10.place(x=465,y=575, width= 200, height= 50)
+    config_button = tk.Button(sidebar, text="Configurações", command=lambda: (hf.on_Click(), carrega_frame("Config")), **button_Style_Sidebar)
+    config_button.pack(pady=10, padx=10, fill="x")
 
     buttons_sidebar = [
-        button1, 
-        button2, 
-        button3, 
-        button4,
-        button5,
-        button6,
-        button7,
-        button8,
-        button9,
-        button10
+        home_button,
+        routine_button,
+        log_button,
+        config_button
     ]
     
     for button in buttons_sidebar:
         button.bind("<Enter>", hf.on_Enter_Sidebar)
         button.bind("<Leave>", hf.on_Leave_Sidebar)
 
-    button5.bind("<Enter>", hf.on_Enter_Dominar)
-    button5.bind("<Leave>", hf.on_Leave_Dominar)
-    button10.bind("<Enter>", hf.on_Enter_Dominar)
-    button10.bind("<Leave>", hf.on_Leave_Dominar)
+    def carrega_frame(frame):
+        global frames
 
-    #Troca de paginas
+        frames[frame].place(x = 250, y = 0)
+        
+        for f in frames:
+            if f != frame:
+                frames[f].place_forget()
 
-    def limpar_User_Area():
-        elementos_lista = [
-            home_Principal,
-            button5,
-            rotinas_Lista,
-            rotinas_Detalhes,
-            rotinas_botoes,
-            criar_Nome_Label,
-            criar_Nome,
-            criar_Nome_Linha,
-            criar_Contexto_Label,
-            criar_Contexto,
-            button9,
-            button10
-        ]
-
-        for elemento in elementos_lista:
-            elemento.place_forget()
-
-        criar_Nome.delete("1.0",tk.END)
-        criar_Contexto.delete("1.0",tk.END)
-
-
-    def carregar_Home():
-        limpar_User_Area()
-        home_Principal.place(x = 115,y = 85)
-        button5.place(relx=0.5, y=15, anchor="n")
-    
-    def carregar_Rotinas():
-        limpar_User_Area()
-        rotinas_Lista.place(x = 115,y = 85)
-        rotinas_Detalhes.place(x=615,y=85)
-        rotinas_botoes.place(x = 615, y = 388)
-
-    def carregar_Logs():
-        limpar_User_Area()
-
-    def carregar_configuracoes():
-        limpar_User_Area()
-
-    def carregar_Criar():
-        limpar_User_Area()
-        criar_Nome_Label.place(x=115, y = 85)
-        criar_Nome.place(x=200, y = 90, width = 700, height = 35)
-        criar_Nome_Linha.place(x=200, y = 115, width = 700, height = 2)
-        criar_Contexto_Label.place(x=115, y = 200)
-        criar_Contexto.place(x = 115, y = 250, width = 800, height = 300)
-        button9.place(x=715,y=575, width= 200, height= 50)
-        button10.place(x=465,y=575, width= 200, height= 50)
-
-    limpar_User_Area()
 
     def submit_text():
         global NameText
@@ -489,7 +495,7 @@ def main_Screen():
             NameText = criar_Nome.get("1.0", tk.END).strip()
             ContextText = criar_Contexto.get("1.0", tk.END).strip()
             adicionar_Item()
-            carregar_Rotinas()
+            carrega_frame("Routine")
 
     def adicionar_Item():
         global NameText
@@ -508,5 +514,7 @@ def main_Screen():
         rotinas_Detalhes_Text.delete('1.0', tk.END)
         rotinas_Detalhes_Text.insert(tk.END, contexto)
         rotinas_Detalhes_Text.config(state="disabled")
+
+    carrega_frame("Home")
 
     root.mainloop()

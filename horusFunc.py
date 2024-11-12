@@ -1,7 +1,6 @@
 import os
 import sys
 import shutil
-import winreg
 import tkinter as tk
 import pygame
 
@@ -32,6 +31,7 @@ def resource_path(relative_path):
 
 def install_font(font_path):
     font_name = os.path.basename(font_path)
+    return False
     try:
         # Check if the font file exists
         if not os.path.isfile(font_path):
