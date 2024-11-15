@@ -339,6 +339,13 @@ def main_Screen():
 
     rotinas_botoes = tk.Frame(routine_frame, width=300, height=250, bg="#252525")
     rotinas_botoes.place(x = 615, y = 388)
+    def get_button_details(routine):
+        def show_details():
+            global selected_routine
+            
+            selected_routine = routine
+            insere_texto(rotinas_Detalhes_Text, routines[routine]["command"])
+        return show_details
     
     def build_routine_list():
         global routines
@@ -347,16 +354,11 @@ def main_Screen():
             child.destroy()
 
         for routine in routines:
-            def show_details():
-                global selected_routine
-                
-                selected_routine = routine
-                insere_texto(rotinas_Detalhes_Text, routines[routine]["command"])
         
             button = tk.Button(
                     rotinas_Lista.scrollable_frame,
                     text= routine,
-                    command=show_details,
+                    command=get_button_details(routine),
                     **button_Style_Sidebar
                 )
             button.pack(pady=5, padx=0, fill="x", expand=True)
