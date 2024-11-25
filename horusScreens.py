@@ -187,7 +187,9 @@ def intro_Screen():
     
 def main_Screen():
 
-    global root, frames, routines, selected_routine
+    global root, frames, routines, selected_routine, logs, selected_log, temp
+
+    temp = 0
 
     topic_handlers = {}
 
@@ -198,8 +200,10 @@ def main_Screen():
             "command": "('T', 'PRESSED', '0.40') ('E', 'PRESSED', '30.04') ('S', 'RELEASED', '19.73') ('T', 'RELEASED', '30.69') ('G', 'RELEASED', '51.84') ('S', 'PRESSED', '61.99') ('G', 'PRESSED', '29.85') ('E', 'RELEASED', '20.29') ('E', 'PRESSED', '69.66') ('S', 'RELEASED', '125.01') ('E', 'RELEASED', '52.24') ('G', 'RELEASED', '98.22')"
         }
     }
+    logs = {}
 
     selected_routine = None
+    selected_log = None
 
     def set_topic_handler( topic, func):
         topic_handlers[topic] = func
@@ -242,7 +246,7 @@ def main_Screen():
     # Log api start
     def setup_api():
         global log_api, api_process
-        api_command = ["python3","log_api.py"]
+        api_command = ["python","log_api.py"]
         api_process = Popen(api_command)
 
         ngrok.set_auth_token("2pKQ7D8bWrRMQKk5LFue3scb4o1_32UcALS4fAWgkyhz6UryW")
@@ -252,7 +256,7 @@ def main_Screen():
         print("LOG_API_URL", listener.url())
         log_api = listener.url()
     
-    setup_api()
+    #setup_api()
 
     root = tk.Tk()    
     root.configure(bg='#252525')
@@ -411,7 +415,7 @@ def main_Screen():
         
             button = tk.Button(
                     rotinas_Lista.scrollable_frame,
-                    text= routine,
+                    text = routine,
                     command=get_button_details(routine),
                     **button_Style_Sidebar
                 )
@@ -662,7 +666,6 @@ def main_Screen():
         confirm_button.place(x=300, y=130)
 
     #Estilos dos Logs
-    # FAZER A TELA DE LOG DENTRO DESTE FRAME (a parte de trocar de pagina e etc ja esta pronta)
 
     log_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
     log_frame.place(x=250,y = 0)
@@ -672,6 +675,8 @@ def main_Screen():
 
     log_visual = tk.Frame(log_frame, width = 415, height = 450, bd=1, relief="solid", bg="#242323")
     log_visual.place(x = 500,y = 85)
+    log_visual_text = hf.ScrollableText(log_visual,width=415,height=450)
+    log_visual_text.pack(fill="both", expand=True)
 
     log_lista_search = tk.Text(log_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid", state="normal")
     log_lista_search.place(x = 115, y = 40, width = 270, height = 30)
@@ -700,6 +705,42 @@ def main_Screen():
 
     log_button_baixar = tk.Button(log_frame, text="Download", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_baixar.place(x = 765, y = 550, width=150,height=85)
+
+    def adicionar_log():
+        try:
+            global logs,temp
+            with open("testinhoLog.txt") as bd:
+                lines = bd.readlines()
+                try:
+                    atual = lines[temp].strip().split(",")
+                except:
+                    pass
+                temp+=1
+            print(atual[0])
+            print(atual[1])
+            logs[atual[0]] = {"desc": atual[1]}
+            build_log_list()
+        except:
+            pass
+
+    def build_log_list():
+        def get_button_details_log(log):
+            insere_texto(log_visual_text, log["desc"].strip())
+
+        global logs
+        for child in log_Lista.scrollable_frame.winfo_children():
+            child.destroy()
+        
+        for date, log in logs.items():
+            print(date)
+            print(log)
+            button = tk.Button(
+                    log_Lista.scrollable_frame,
+                    text = date,
+                    command = lambda log = log: get_button_details_log(log),
+                    **button_Style_Sidebar
+                )
+            button.pack(pady=5, padx=0, fill="x", expand=True)
 
     def habilitar_search_lista_logs():
         if log_lista_search.winfo_ismapped():
@@ -734,6 +775,9 @@ def main_Screen():
 
     config_button = tk.Button(sidebar, text="Configurações", command=lambda: (hf.on_Click(), teste()), **button_Style_Sidebar)
     config_button.pack(pady=10, padx=10, fill="x")
+
+    sync_button = tk.Button(sidebar, text="Sync test", command=lambda: (hf.on_Click(), adicionar_log()), **button_Style_Sidebar)
+    sync_button.pack(pady=10, padx=10, fill="x")
     
     #carrega_frame("Config")
 
@@ -764,9 +808,13 @@ def main_Screen():
         widget.config(state="disabled")
     
     def teste():
-        global routines
+        global routines, selected_routine, logs, selected_log
         for el in routines:
             print(el)
+        print(selected_routine)
+        for el in logs:
+            print(el)
+        print(selected_log)
 
     carrega_frame("Home")
     try:
