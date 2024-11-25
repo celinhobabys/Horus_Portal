@@ -10,7 +10,7 @@ def on_connect( client, userdata, flags, rc):
         print("Connected with result code " + str(rc))
         # Subscribing in on_connect() means that if we lose the connection and
         # reconnect then subscriptions will be renewed.
-        client.subscribe("teclado_espiao/routine")
+        client.subscribe("teclado_espiao/command_request")
 
     # The callback for when a PUBLISH message is received from the server.
 def on_message( client, userdata, msg):
