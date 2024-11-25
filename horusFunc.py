@@ -4,8 +4,13 @@ import shutil
 import tkinter as tk
 from tkinter import ttk
 import pygame
+from tkcalendar import Calendar
+from datetime import datetime
 
-pygame.mixer.init()
+try:
+    pygame.mixer.init()
+except:
+    pass
 
 def centralize_Window(root,width = None,height = None):
     
@@ -54,13 +59,19 @@ def home_Page():
     return
 
 def on_Enter_Sidebar(event):
-    sound = pygame.mixer.Sound(resource_path("resources/Hover.mp3"))
-    pygame.mixer.Sound.play(sound)
+    try:
+        sound = pygame.mixer.Sound(resource_path("resources/Hover.mp3"))
+        pygame.mixer.Sound.play(sound)
+    except:
+        pass
     event.widget.config(bg="#3bdb42")
 
 def on_Enter_Dominar(event):
-    sound = pygame.mixer.Sound(resource_path("resources/Hover.mp3"))
-    pygame.mixer.Sound.play(sound)
+    try:
+        sound = pygame.mixer.Sound(resource_path("resources/Hover.mp3"))
+        pygame.mixer.Sound.play(sound)
+    except:
+        pass
     event.widget.config(bg="#db2a16")
 
 def on_Leave_Sidebar(event):
@@ -70,16 +81,24 @@ def on_Leave_Dominar(event):
     event.widget.config(bg="#a1392d")
 
 def on_Click():
-    sound = pygame.mixer.Sound(resource_path("resources/Click.mp3"))
-    pygame.mixer.Sound.play(sound)
-
+    try:
+        sound = pygame.mixer.Sound(resource_path("resources/Click.mp3"))
+        pygame.mixer.Sound.play(sound)
+    except:
+        pass
 def on_Click_Dom_On():
-    sound = pygame.mixer.Sound(resource_path("resources/DominationIn.mp3"))
-    pygame.mixer.Sound.play(sound)
+    try:
+        sound = pygame.mixer.Sound(resource_path("resources/DominationIn.mp3"))
+        pygame.mixer.Sound.play(sound)
+    except:
+        pass
 
 def on_Click_Dom_Off():
-    sound = pygame.mixer.Sound(resource_path("resources/DominationOut.mp3"))
-    pygame.mixer.Sound.play(sound)
+    try:
+        sound = pygame.mixer.Sound(resource_path("resources/DominationOut.mp3"))
+        pygame.mixer.Sound.play(sound)
+    except:
+        pass
 
 class ScrollableFrame(tk.Frame):
     def __init__(self, container, width=400, height=400, *args, **kwargs):
