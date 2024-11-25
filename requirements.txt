@@ -1,0 +1,7 @@
+pygame == 2.6.1
+certifi == 2024.8.30
+tkcalendar == 1.6.1
+ngrok == 1.4.0
+fastapi == 0.115.5
+python-multipart == 0.0.17
+uvicorn == 0.32.1
