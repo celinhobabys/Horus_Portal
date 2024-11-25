@@ -226,6 +226,11 @@ def main_Screen():
 
     Dom = False
 
+    #media
+
+    imagem_search_path = hf.resource_path("resources/search_icon.png")
+    imagem_search = tk.PhotoImage(file=imagem_search_path)
+
     #Logica de estados
     
     def paint_frames(color):
@@ -331,7 +336,7 @@ def main_Screen():
     rotinas_Detalhes = tk.Frame(routine_frame, width=300, height=250, bd=1, relief="solid", bg="#242323")
     rotinas_Detalhes.pack_propagate(False)
 
-    rotinas_Detalhes_Text = tk.Text(rotinas_Detalhes, font=("Anonymous Pro", 11), bg="#252525", fg="white", highlightthickness=0, bd=0)
+    rotinas_Detalhes_Text = tk.Text(rotinas_Detalhes, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
     rotinas_Detalhes_Text.pack(fill="both",expand=True)
     rotinas_Detalhes_Text.config(state="disabled")
 
@@ -517,8 +522,61 @@ def main_Screen():
 
     #Estilos dos Logs
     # FAZER A TELA DE LOG DENTRO DESTE FRAME (a parte de trocar de pagina e etc ja esta pronta)
+
     log_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
     log_frame.place(x=250,y = 0)
+    
+    log_Lista = hf.ScrollableFrame(log_frame, width=300, height=550)
+    log_Lista.place(x = 115,y = 85)
+
+    log_visual = tk.Frame(log_frame, width = 415, height = 450, bd=1, relief="solid", bg="#242323")
+    log_visual.place(x = 500,y = 85)
+
+    log_lista_search = tk.Text(log_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid", state="normal")
+    log_lista_search.place(x = 115, y = 40, width = 270, height = 30)
+    log_lista_search.place_forget()
+
+    log_lista_context_search = tk.Text(log_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid", state="normal")
+    log_lista_context_search.place(x = 500, y = 40, width = 270, height = 30)
+    log_lista_context_search.place_forget()
+
+    log_button_search = tk.Button(log_frame, image=imagem_search, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(),habilitar_search_lista_logs()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_search.place(x=85,y=85,width=30,height=30)
+
+    log_button_search_context = tk.Button(log_frame, image=imagem_search, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(),habilitar_search_contexto_logs()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_search_context.place(x=915,y=85,width=30,height=30)
+
+    log_lista_search_confirm = log_button_search = tk.Button(log_frame, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
+    log_lista_search_confirm.place(x = 385, y = 40, width = 30, height = 30)
+    log_lista_search_confirm.place_forget()
+
+    log_lista_context_search_confirm = tk.Button(log_frame, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
+    log_lista_context_search_confirm.place(x = 770, y = 40, width = 30, height = 30)
+    log_lista_context_search_confirm.place_forget()
+
+    log_button_AI = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_AI.place(x = 605, y = 550, width=150,height=85)
+
+    log_button_baixar = tk.Button(log_frame, text="Download", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_baixar.place(x = 765, y = 550, width=150,height=85)
+
+    def habilitar_search_lista_logs():
+        if log_lista_search.winfo_ismapped():
+            log_lista_search.place_forget()
+            log_lista_search_confirm.place_forget()
+        else:
+            log_lista_search.place(x = 115, y = 40, width = 270, height = 30)
+            log_lista_search_confirm.place(x = 385, y = 40, width = 30, height = 30)
+
+    
+    def habilitar_search_contexto_logs():
+        if log_lista_context_search.winfo_ismapped():
+            log_lista_context_search.place_forget()
+            log_lista_context_search_confirm.place_forget()
+        else:
+            log_lista_context_search.place(x = 500, y = 40, width = 270, height = 30)
+            log_lista_context_search_confirm.place(x = 770, y = 40, width = 30, height = 30)
+        return
 
     frames["Log"] = log_frame
 
@@ -533,8 +591,10 @@ def main_Screen():
     log_button = tk.Button(sidebar, text="Logs", command=lambda: (hf.on_Click(), carrega_frame("Log")), **button_Style_Sidebar)
     log_button.pack(pady=10, padx=10, fill="x")
 
-    config_button = tk.Button(sidebar, text="Configurações", command=lambda: (hf.on_Click(), carrega_frame("Config")), **button_Style_Sidebar)
+    config_button = tk.Button(sidebar, text="Configurações", command=lambda: (hf.on_Click(), teste()), **button_Style_Sidebar)
     config_button.pack(pady=10, padx=10, fill="x")
+    
+    #carrega_frame("Config")
 
     buttons_sidebar = [
         home_button,
@@ -561,6 +621,11 @@ def main_Screen():
         widget.delete('1.0', tk.END)
         widget.insert(tk.END, contexto)
         widget.config(state="disabled")
+    
+    def teste():
+        global routines
+        for el in routines:
+            print(el)
 
     carrega_frame("Home")
 

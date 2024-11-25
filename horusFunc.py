@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import tkinter as tk
+from tkinter import ttk
 import pygame
 
 pygame.mixer.init()
@@ -87,7 +88,19 @@ class ScrollableFrame(tk.Frame):
         self.canvas = tk.Canvas(self, width=width, height=height, bd=0, highlightthickness=0, bg="#242323")
         self.canvas.pack(side="left", fill="both", expand=True)
         
-        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        # Customiza a barra de rolagem
+        style = ttk.Style()
+        style.theme_use("clam")  # Escolha um tema que permita personalização
+        style.configure(
+            "Vertical.TScrollbar",
+            troughcolor="#000000",  # Cor do fundo (área de rolagem)
+            background="#4CAF50",  # Cor da barrinha
+            arrowcolor="#4CAF50",  # Cor das setas
+            bordercolor="#242323",  # Cor da borda
+            relief="flat",  # Estilo da borda
+        )
+        
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
         self.scrollbar.pack(side="right", fill="y")
         
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
