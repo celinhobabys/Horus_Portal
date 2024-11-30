@@ -147,16 +147,9 @@ def confirm(text, text_Y, text_N):
     confirmW.wait_window(confirmW)
 
 def intro_Screen():
-    
-    font_path = "resources/AnonymousPro-Bold.ttf"
-    hf.install_font(font_path)
-    musica = hf.resource_path("resources/Intro_song.mp3")
-    imagem_caminho = hf.resource_path("resources/Horus_intro.png")
-
-
-    pygame.mixer.init()
-    pygame.mixer.music.load(musica)
-    pygame.mixer.music.play(loops=0)
+    hf.start_audio()
+    musica = hf.play_music("resources/audio/music/Intro_song.mp3")
+    imagem_caminho = hf.resource_path("resources/images/Horus_intro.png")
     
     intro = tk.Tk()
     intro.title("Welcome to Horus")
@@ -207,6 +200,8 @@ def main_Screen():
 
     def set_topic_handler( topic, func):
         topic_handlers[topic] = func
+
+    hf.start_audio()
 
     # The callback for when the client receives a CONNACK response from the server.
     def on_connect( client, userdata, flags, rc):
@@ -263,7 +258,7 @@ def main_Screen():
     root.title("Horus")
     root.resizable(False, False)
 
-    icon_path = "icon.ico"
+    icon_path = "resources/images/icon.ico"
     #root.iconbitmap(icon_path)
 
     hf.centralize_Window(root)
@@ -281,7 +276,7 @@ def main_Screen():
 
     #media
 
-    imagem_search_path = hf.resource_path("resources/search_icon.png")
+    imagem_search_path = hf.resource_path("resources/images/search_icon.png")
     imagem_search = tk.PhotoImage(file=imagem_search_path)
 
     #Logica de estados

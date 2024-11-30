@@ -4,13 +4,10 @@ import shutil
 import tkinter as tk
 from tkinter import ttk
 import pygame
-from tkcalendar import Calendar
 from datetime import datetime
 
-try:
-    pygame.mixer.init()
-except:
-    pass
+global sound_state
+sound_state = False
 
 def centralize_Window(root,width = None,height = None):
     
@@ -35,43 +32,38 @@ def resource_path(relative_path):
 
     return os.path.join(base_path, relative_path)
 
-def install_font(font_path):
-    font_name = os.path.basename(font_path)
-    return False
+def start_audio():
+    global sound_state
     try:
-        # Check if the font file exists
-        if not os.path.isfile(font_path):
-            print("Font file not found.")
-            return False
-        font_dir = os.path.join(os.environ["WINDIR"], "Fonts")
-        destination = os.path.join(font_dir, font_name)
-        shutil.copy(font_path, destination)
-        font_name_no_ext = os.path.splitext(font_name)[0]
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts", 0, winreg.KEY_SET_VALUE) as key:
-            winreg.SetValueEx(key, font_name_no_ext, 0, winreg.REG_SZ, font_name)
-        return True
-    except Exception as e:
-        print(f"Failed to install font: {e}")
-        return False
-
-def home_Page():
-    
-    return
-
-def on_Enter_Sidebar(event):
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/Hover.mp3"))
-        pygame.mixer.Sound.play(sound)
+        pygame.mixer.init()
+        sound_state = True
     except:
         pass
+
+def play_music(path):
+    global sound_state
+    if sound_state:
+        try:
+            sound = pygame.mixer.music.load(resource_path(path))
+            pygame.mixer.music.play()
+        except:
+            pass
+
+def play_sound(path):
+    global sound_state
+    if sound_state:
+        try:
+            sound = pygame.mixer.Sound(resource_path(path))
+            pygame.mixer.Sound.play(sound)
+        except:
+            pass
+
+def on_Enter_Sidebar(event):
+    play_sound("resources/audio/sound/Hover.mp3")
     event.widget.config(bg="#3bdb42")
 
 def on_Enter_Dominar(event):
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/Hover.mp3"))
-        pygame.mixer.Sound.play(sound)
-    except:
-        pass
+    play_sound("resources/audio/sound/Hover.mp3")
     event.widget.config(bg="#db2a16")
 
 def on_Leave_Sidebar(event):
@@ -81,24 +73,13 @@ def on_Leave_Dominar(event):
     event.widget.config(bg="#a1392d")
 
 def on_Click():
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/Click.mp3"))
-        pygame.mixer.Sound.play(sound)
-    except:
-        pass
+    play_sound("resources/audio/sound/Click.mp3")
+
 def on_Click_Dom_On():
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/DominationIn.mp3"))
-        pygame.mixer.Sound.play(sound)
-    except:
-        pass
+    play_sound("resources/audio/sound/DominationIn.mp3")
 
 def on_Click_Dom_Off():
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/DominationOut.mp3"))
-        pygame.mixer.Sound.play(sound)
-    except:
-        pass
+    play_sound("resources/audio/sound/DominationOut.mp3")
 
 class ScrollableFrame(tk.Frame):
     def __init__(self, container, width=400, height=400, *args, **kwargs):
