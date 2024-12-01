@@ -40,6 +40,14 @@ def start_audio():
     except:
         pass
 
+def stop_audio():
+    global sound_state
+    try:
+        pygame.mixer.quit()
+        sound_state = False
+    except:
+        pass
+
 def play_music(path):
     global sound_state
     if sound_state:
@@ -80,6 +88,28 @@ def on_Click_Dom_On():
 
 def on_Click_Dom_Off():
     play_sound("resources/audio/sound/DominationOut.mp3")
+
+def error_sound():
+    play_sound("resources/audio/sound/error.mp3")
+
+
+def make_draggable(widget):
+    # Create a Frame inside the Toplevel window
+    frame = tk.Frame(widget, bg='#3a3a3a')
+    frame.pack(expand=True, fill='both')
+
+    def start_drag(event):
+        widget.x = event.x
+        widget.y = event.y
+
+    def do_drag(event):
+        x = widget.winfo_x() - widget.x + event.x
+        y = widget.winfo_y() - widget.y + event.y
+        widget.geometry(f"+{x}+{y}")
+
+    # Bind mouse events for dragging to the Frame
+    frame.bind("<Button-1>", start_drag)
+    frame.bind("<B1-Motion>", do_drag)
 
 class ScrollableFrame(tk.Frame):
     def __init__(self, container, width=400, height=400, *args, **kwargs):
@@ -161,6 +191,10 @@ class ScrollableText(tk.Frame):
         self.text.bind("<Configure>", self.on_text_configure)
         self.canvas.bind("<Configure>", self.on_canvas_configure)
 
+        # Search state
+        self.search_results = []  # List of all match positions
+        self.current_index = -1  # Current position in search results
+
     def on_text_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
     
@@ -177,3 +211,40 @@ class ScrollableText(tk.Frame):
 
     def config(self, **kwargs):
         self.text.config(**kwargs)
+
+    # Search functionality
+    def search_text(self, target):
+        self.text.tag_remove("highlight", "1.0", tk.END)  # Clear previous highlights
+        self.search_results = []  # Clear previous search results
+        self.current_index = -1  # Reset current index
+
+        if target:  # Search only if there's text
+            start_pos = "1.0"
+            while True:
+                start_pos = self.text.search(target, start_pos, stopindex=tk.END)
+                if not start_pos:
+                    break  # Exit if no more matches
+                end_pos = f"{start_pos}+{len(target)}c"
+                self.text.tag_add("highlight", start_pos, end_pos)  # Highlight match
+                self.search_results.append((start_pos, end_pos))  # Store match positions
+                start_pos = end_pos  # Move past the match
+
+        # Configure the highlight tag
+        self.text.tag_config("highlight", background="yellow", foreground="black")
+        if self.search_results:
+            self.current_index = 0
+            self.text.see(self.search_results[0][0])  # Show the first match
+
+    def go_next(self):
+        if self.search_results:
+            self.current_index = (self.current_index + 1) % len(self.search_results)
+            self.text.see(self.search_results[self.current_index][0])
+
+    def go_back(self):
+        if self.search_results:
+            self.current_index = (self.current_index - 1) % len(self.search_results)
+            self.text.see(self.search_results[self.current_index][0])
+
+    def get(self, start="1.0", end=tk.END):
+        """Get text from the internal Text widget."""
+        return self.text.get(start, end).strip()
