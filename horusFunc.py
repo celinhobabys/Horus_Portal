@@ -6,8 +6,10 @@ from tkinter import ttk
 import pygame
 from datetime import datetime
 
-global sound_state
+global sound_state, palavra
+
 sound_state = False
+palavra = ""
 
 def centralize_Window(root,width = None,height = None):
     
@@ -95,6 +97,14 @@ def error_sound():
 def response_sound():
     play_sound("resources/audio/sound/response.mp3")
 
+def ajustar_volume(val):
+    volume = int(val) / 100
+    try:
+        pygame.mixer.music.set_volume(volume)
+        pygame.mixer.Sound.set_volume(volume)
+    except:
+        pass
+
 
 def make_draggable(widget):
     # Create a Frame inside the Toplevel window
@@ -134,7 +144,6 @@ class ScrollableFrame(tk.Frame):
         )
         
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
-        self.scrollbar.pack(side="right", fill="y")
         
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         
@@ -173,7 +182,6 @@ class ScrollableText(tk.Frame):
         )
         
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
-        self.scrollbar.pack(side="right", fill="y")
         
         # Configuring the scrollbar and canvas
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -197,13 +205,15 @@ class ScrollableText(tk.Frame):
         # Search state
         self.search_results = []  # List of all match positions
         self.current_index = -1  # Current position in search results
-
-    def on_text_configure(self, event=None):
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
     
+    def on_text_configure(self, event):
+        # Update the scrollable region of the canvas when the text content changes
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
     def on_canvas_configure(self, event):
-        canvas_width = event.width
-        self.canvas.itemconfig(self.text_window, width=canvas_width)
+        # Adjust the scroll region when the canvas is resized
+        self.canvas.itemconfig(self.text_window, width=event.width)
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     # Wrapper methods for the Text widget
     def insert(self, index, text, *args):
@@ -217,9 +227,11 @@ class ScrollableText(tk.Frame):
 
     # Search functionality
     def search_text(self, target):
+        global palavra
         self.text.tag_remove("highlight", "1.0", tk.END)  # Clear previous highlights
         self.search_results = []  # Clear previous search results
         self.current_index = -1  # Reset current index
+        palavra = target
 
         if target:  # Search only if there's text
             start_pos = "1.0"
@@ -234,18 +246,41 @@ class ScrollableText(tk.Frame):
 
         # Configure the highlight tag
         self.text.tag_config("highlight", background="yellow", foreground="black")
+        self.text.tag_config("atual", background="green", foreground="black")
         if self.search_results:
             self.current_index = 0
             self.text.see(self.search_results[0][0])  # Show the first match
+            self.start_after_search()
+
+    def start_after_search(self):
+        if self.search_results:
+            end_pos = f"{self.search_results[self.current_index][0]}+{len(palavra)}c"
+            self.text.tag_add("atual", self.search_results[self.current_index][0], end_pos)
 
     def go_next(self):
         if self.search_results:
             self.current_index = (self.current_index + 1) % len(self.search_results)
+            print(self.search_results)
+            self.past_index = (self.current_index - 1) % len(self.search_results)
+            end_pos_past = f"{self.search_results[self.past_index][0]}+{len(palavra)}c"
+            self.text.tag_remove("atual", self.search_results[self.past_index][0], end_pos_past)
+
+            end_pos = f"{self.search_results[self.current_index][0]}+{len(palavra)}c"
+            self.text.tag_add("atual", self.search_results[self.current_index][0], end_pos)
+
             self.text.see(self.search_results[self.current_index][0])
 
     def go_back(self):
         if self.search_results:
             self.current_index = (self.current_index - 1) % len(self.search_results)
+
+            self.past_index = (self.current_index + 1) % len(self.search_results)
+            end_pos_past = f"{self.search_results[self.past_index][0]}+{len(palavra)}c"
+            self.text.tag_remove("atual", self.search_results[self.past_index][0], end_pos_past)
+
+            end_pos = f"{self.search_results[self.current_index][0]}+{len(palavra)}c"
+            self.text.tag_add("atual", self.search_results[self.current_index][0], end_pos)
+
             self.text.see(self.search_results[self.current_index][0])
 
     def get(self, start="1.0", end=tk.END):

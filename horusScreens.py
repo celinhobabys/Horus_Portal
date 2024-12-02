@@ -10,6 +10,7 @@ import os
 import ngrok
 import google.generativeai as genai
 import threading
+from tkinter import filedialog
 
 global Confirmar
 global mqtt_client
@@ -833,7 +834,7 @@ def main_Screen():
             with open("testinhoLog.txt", encoding="utf-8") as bd:
                 lines = bd.readlines()
                 try:
-                    atual = lines[temp].strip().split(",")
+                    atual = lines[temp].strip().split("#")
                 except:
                     pass
                 temp+=1
@@ -1040,11 +1041,61 @@ def main_Screen():
     frames["Log"] = log_frame
 
     #Estilos das configuracoes
+    global download_path_default
+    download_path_default = os.path.abspath(__file__)
+    pular_intro = 0
+
+    scale_config = {
+        "from_": 0,
+        "to": 100,
+        "orient": "horizontal",
+        "command": hf.ajustar_volume,
+        "bg": "#252525",
+        "length": 300,
+        "bd": 0,
+        "highlightthickness": 0,
+        "showvalue": False,
+        "resolution": 10
+    }
+
+    def mudar_path():
+        global download_path_default
+        download_path = filedialog.askdirectory(title="Escolher um diretório")
+        if not download_path:
+            download_path = download_path_default
+        config_label_download_path.config(text=download_path)
+        download_path_default = download_path
 
     conf_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
     conf_frame.place(x=250,y = 0)
 
+    config_label_download = tk.Label(conf_frame, text="Path de download:", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+    config_label_download.place(x=115, y=85)
+    
+    config_label_download_path = tk.Label(conf_frame, text=download_path_default, font=("Anonymous Pro", 11, "bold"), bg = "#252525", fg = "gray")
+    config_label_download_path.place(x=115, y=120)
 
+    config_label_download_button = tk.Button(conf_frame, text="Mudar", command=lambda: (hf.on_Click(), mudar_path()), **button_Style_Sidebar)
+    config_label_download_button.place(x=115, y=150, width=100,height=30)
+
+    config_label_volume = tk.Label(conf_frame, text="Volume:", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+    config_label_volume.place(x=115, y=200)
+
+    config_label_volume_slider = tk.Scale(conf_frame,**scale_config)
+    config_label_volume_slider.set(100)
+    config_label_volume_slider.place(x=210, y=210)
+
+    config_label_intro = tk.Label(conf_frame, text="Pular Intro:", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+    config_label_intro.place(x=115,y=250)
+
+    config_label_intro_checkbox = tk.Checkbutton(conf_frame, variable=pular_intro, bg="#252525",highlightthickness=0,activebackground="#252525",)
+    config_label_intro_checkbox.place(x=235,y=255)
+
+    largura = config_label_intro.winfo_reqwidth()
+    altura = config_label_intro.winfo_reqheight()
+
+    print(largura)
+    print(altura)
 
     frames["Config"] = conf_frame
 
