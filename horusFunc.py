@@ -92,6 +92,9 @@ def on_Click_Dom_Off():
 def error_sound():
     play_sound("resources/audio/sound/error.mp3")
 
+def response_sound():
+    play_sound("resources/audio/sound/response.mp3")
+
 
 def make_draggable(widget):
     # Create a Frame inside the Toplevel window

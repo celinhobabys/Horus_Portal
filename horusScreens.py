@@ -3,12 +3,13 @@ import tkinter as tk
 from tkinter import font
 import horusFunc as hf
 from horusKeyboard import QWERTYKeyboard
-import pygame
 import paho.mqtt.client as mqtt
 import certifi
 from datetime import datetime
 import os
 import ngrok
+import google.generativeai as genai
+import threading
 
 global Confirmar
 global mqtt_client
@@ -148,6 +149,41 @@ def confirm(text, text_Y, text_N):
 
     confirmW.wait_window(confirmW)
 
+def janela_erro(texto, janela_principal=None):
+    def sub_janela():
+        if janela_principal is not None:
+            janela_principal.destroy()
+
+    hf.error_sound()
+    if janela_principal is not None:
+        janela_principal.withdraw()
+    errorW = tk.Toplevel()
+    errorW.configure(bg='#3a3a3a')
+    errorW.resizable(False, False)
+    errorW.overrideredirect(True)
+    errorW.pack_propagate(False)
+    errorW.attributes("-topmost", True)
+    errorW.grab_set()
+    hf.centralize_Window(errorW, 300, 150)
+
+    button_ok = {
+        "font": ("Anonymous Pro", 16, "bold"),
+        "bg": "#a1392d",
+        "fg": "white",
+        "bd": 0,
+        "activebackground": "#943a2f",
+        "activeforeground": "white"
+    }
+
+    texto_pos = tk.Frame(errorW, width=300, height=70, bg="#3a3a3a")
+    texto_pos.place(relx=0.5, anchor="n")
+
+    texto = tk.Label(texto_pos, text=texto, font=("Anonymous Pro", 16, "bold"), bg = "#3a3a3a", fg = "white")
+    texto.pack(expand=True, padx=10, pady=20)
+
+    button1 = tk.Button(errorW, text="confirmar", command=lambda: (hf.on_Click(), errorW.destroy(), sub_janela()), **button_ok)
+    button1.place(x=90, y=80, width=120, height=50)
+
 def intro_Screen():
     hf.start_audio()
     musica = hf.play_music("resources/audio/music/Intro_song.mp3")
@@ -201,6 +237,9 @@ def main_Screen():
 
     selected_routine = None
     selected_log = None
+
+    genai.configure(api_key="AIzaSyA0qpld5E47TpM4wsso-WNm1RUJLT0mobQ")
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
     def set_topic_handler( topic, func):
         topic_handlers[topic] = func
@@ -702,16 +741,96 @@ def main_Screen():
     log_button_context_back = tk.Button(log_frame, image=imagem_up, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), log_visual_text.go_back()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_context_back.place(x=930,y=120,width=30,height=30)
 
-    log_button_AI = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_AI = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (run_contexto_AI()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_AI.place(x = 605, y = 550, width=150,height=85)
 
-    log_button_baixar = tk.Button(log_frame, text="Download", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_baixar = tk.Button(log_frame, text="Download", borderwidth=0, highlightthickness=0, command=lambda: (download_log()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_baixar.place(x = 765, y = 550, width=150,height=85)
+
+    def download_log():
+        if selected_log is not None:
+            def escreve_log(file_path,text):
+                with open(file_path, "w", encoding="utf-8") as file:
+                    file.write(text)
+            
+            hf.on_Click()
+            file_name = selected_log[0] + ".txt"
+            file_name = file_name.replace("/", "_")
+            if not os.path.exists(file_name):
+                escreve_log(file_name,selected_log[1])
+            else:
+                contador = 1
+                base, extension = os.path.splitext(file_name)
+                while os.path.exists(base + f"({contador})" + extension):
+                    contador+=1
+                escreve_log(base + f"({contador})" + extension, selected_log[1])
+        else:
+            janela_erro("Selecione um log!")
+    
+    def contexto_AI():
+        global selected_log
+        log_button_AI.place_forget()
+        pergunta = "Eu tenho esse log aqui, me de tudo de importante sobre ele como pontos chaves (sempre de os pontos chaves), possiveis senhas e informaçoes importantes: "
+        pergunta += selected_log[1]
+        resposta = model.generate_content(pergunta).text
+        button_Style_Ai = button_Style_Sidebar
+        button_Style_Ai["bg"] = '#2478ff'
+        button_Style_Ai["activebackground"] = '#1961d4'
+        hf.response_sound()
+        log_button_AI_response = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), janela_AI(resposta, log_button_AI_response)), width = 10, height = 2, **button_Style_Ai)
+        log_button_AI_response.place(x = 605, y = 550, width=150,height=85)
+        
+
+    def janela_AI(resposta,widget):
+        def proxima_resposta():
+            widget.place_forget()
+            log_button_AI.place(x = 605, y = 550, width=150,height=85)
+            aiW.destroy()
+        aiW = tk.Toplevel()
+        aiW.configure(bg='#3a3a3a')
+        aiW.resizable(False, False)
+        aiW.overrideredirect(True)
+        aiW.pack_propagate(False)
+        aiW.attributes("-topmost", True)
+        aiW.grab_set()
+        hf.centralize_Window(aiW,300,300)
+
+        hf.make_draggable(aiW)
+
+        button_confirm = {
+            "font": ("Anonymous Pro", 16, "bold"),
+            "bg": "#4CAF50",
+            "fg": "white",
+            "bd": 0,
+            "activebackground": "#45A049",
+            "activeforeground": "white"
+        }
+
+        texto_pos = tk.Frame(aiW, bg="#3a3a3a")
+        texto_pos.place(x = 10, y = 10, width=280, height=230)
+
+        texto = hf.ScrollableText(texto_pos, width=50,height=50)
+        texto.pack(fill="both", expand=True)
+
+        button1 = tk.Button(aiW, text="confirmar", command=lambda: (hf.on_Click(), proxima_resposta()), **button_confirm)
+        button1.place(x=100,y=250, width = 100, height = 40)
+
+        insere_texto(texto, resposta)
+
+        aiW.wait_window(aiW)
+
+    def run_contexto_AI():
+        global selected_log
+        if selected_log is None:
+            janela_erro("Selecione um log!")
+            return
+        hf.on_Click()
+        threading.Thread(target=contexto_AI).start()
 
     def adicionar_log():
         try:
             global logs, temp
-            with open("testinhoLog.txt") as bd:
+            with open("testinhoLog.txt", encoding="utf-8") as bd:
                 lines = bd.readlines()
                 try:
                     atual = lines[temp].strip().split(",")
@@ -724,8 +843,11 @@ def main_Screen():
             pass
 
     def build_log_list(case):
-        def get_button_details_log(log):
-            insere_texto(log_visual_text, log["desc"].strip())
+        def get_button_details_log(date, log):
+            global selected_log
+            texto = log["desc"].strip()
+            selected_log = date, texto
+            insere_texto(log_visual_text, texto)
 
         global logs, logs_sorted
         for child in log_Lista.scrollable_frame.winfo_children():
@@ -742,7 +864,7 @@ def main_Screen():
             button = tk.Button(
                     log_Lista.scrollable_frame,
                     text = date,
-                    command = lambda log = log: get_button_details_log(log),
+                    command = lambda log = log: get_button_details_log(date, log),
                     **button_Style_Sidebar
                 )
             button.pack(pady=5, padx=0, fill="x", expand=True)
@@ -765,36 +887,6 @@ def main_Screen():
         Data_start = datetime.min
         Data_finish = datetime.max
 
-        def janela_erro():
-            hf.error_sound()
-            dataW.withdraw()
-            errorW = tk.Toplevel()
-            errorW.configure(bg='#3a3a3a')
-            errorW.resizable(False, False)
-            errorW.overrideredirect(True)
-            errorW.pack_propagate(False)
-            errorW.attributes("-topmost", True)
-            errorW.grab_set()
-            hf.centralize_Window(errorW,300,150)
-
-            button_ok = {
-            "font": ("Anonymous Pro", 16, "bold"),
-            "bg": "#a1392d",
-            "fg": "white",
-            "bd": 0,
-            "activebackground": "#943a2f",
-            "activeforeground": "white"
-            }
-
-            texto_pos = tk.Frame(errorW, width=300, height=70, bg="#3a3a3a")
-            texto_pos.place(relx=0.5, anchor="n")
-
-            texto = tk.Label(texto_pos, text="Digite uma data valida!", font=("Anonymous Pro", 16, "bold"), bg = "#3a3a3a", fg = "white")
-            texto.pack(expand=True, padx=10, pady=20)
-
-            button1 = tk.Button(errorW, text="confirmar", command=lambda: (hf.on_Click(), errorW.destroy(),dataW.destroy()), **button_ok)
-            button1.place(x=90,y=80, width = 120, height = 50)
-
         def validate_input(action, value_if_allowed):
             if action == "1":
                 return value_if_allowed.isdigit() and len(value_if_allowed) <= 2
@@ -816,7 +908,7 @@ def main_Screen():
                 sort_logs()
                 dataW.destroy()
             except:
-                janela_erro()
+                janela_erro("Digite uma data valida!", dataW)
 
         dataW = tk.Toplevel()
         dataW.configure(bg='#3a3a3a')
