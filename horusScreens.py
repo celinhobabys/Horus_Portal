@@ -3,17 +3,21 @@ import tkinter as tk
 from tkinter import font
 import horusFunc as hf
 from horusKeyboard import QWERTYKeyboard
-import pygame
 import paho.mqtt.client as mqtt
 import certifi
 from datetime import datetime
 import os
 import ngrok
+import google.generativeai as genai
+import threading
+from tkinter import filedialog
 
 global Confirmar
 global mqtt_client
 global log_api
 global api_process
+global Data_start
+global Data_finish
 
 mqtt_client = None
 
@@ -146,17 +150,45 @@ def confirm(text, text_Y, text_N):
 
     confirmW.wait_window(confirmW)
 
+def janela_erro(texto, janela_principal=None):
+    def sub_janela():
+        if janela_principal is not None:
+            janela_principal.destroy()
+
+    hf.error_sound()
+    if janela_principal is not None:
+        janela_principal.withdraw()
+    errorW = tk.Toplevel()
+    errorW.configure(bg='#3a3a3a')
+    errorW.resizable(False, False)
+    errorW.overrideredirect(True)
+    errorW.pack_propagate(False)
+    errorW.attributes("-topmost", True)
+    errorW.grab_set()
+    hf.centralize_Window(errorW, 300, 150)
+
+    button_ok = {
+        "font": ("Anonymous Pro", 16, "bold"),
+        "bg": "#a1392d",
+        "fg": "white",
+        "bd": 0,
+        "activebackground": "#943a2f",
+        "activeforeground": "white"
+    }
+
+    texto_pos = tk.Frame(errorW, width=300, height=70, bg="#3a3a3a")
+    texto_pos.place(relx=0.5, anchor="n")
+
+    texto = tk.Label(texto_pos, text=texto, font=("Anonymous Pro", 16, "bold"), bg = "#3a3a3a", fg = "white")
+    texto.pack(expand=True, padx=10, pady=20)
+
+    button1 = tk.Button(errorW, text="confirmar", command=lambda: (hf.on_Click(), errorW.destroy(), sub_janela()), **button_ok)
+    button1.place(x=90, y=80, width=120, height=50)
+
 def intro_Screen():
-    
-    font_path = "resources/AnonymousPro-Bold.ttf"
-    hf.install_font(font_path)
-    musica = hf.resource_path("resources/Intro_song.mp3")
-    imagem_caminho = hf.resource_path("resources/Horus_intro.png")
-
-
-    pygame.mixer.init()
-    pygame.mixer.music.load(musica)
-    pygame.mixer.music.play(loops=0)
+    hf.start_audio()
+    musica = hf.play_music("resources/audio/music/Intro_song.mp3")
+    imagem_caminho = hf.resource_path("resources/images/Horus_intro.png")
     
     intro = tk.Tk()
     intro.title("Welcome to Horus")
@@ -187,7 +219,7 @@ def intro_Screen():
     
 def main_Screen():
 
-    global root, frames, routines, selected_routine, logs, selected_log, temp
+    global root, frames, routines, selected_routine, logs, logs_sorted, selected_log, temp, Data_start, Data_finish, Search_word
 
     temp = 0
 
@@ -202,11 +234,18 @@ def main_Screen():
     }
     logs = {}
 
+    logs_sorted = {}
+
     selected_routine = None
     selected_log = None
 
+    genai.configure(api_key="AIzaSyA0qpld5E47TpM4wsso-WNm1RUJLT0mobQ")
+    model = genai.GenerativeModel('gemini-1.5-flash')
+
     def set_topic_handler( topic, func):
         topic_handlers[topic] = func
+
+    hf.start_audio()
 
     # The callback for when the client receives a CONNACK response from the server.
     def on_connect( client, userdata, flags, rc):
@@ -263,7 +302,7 @@ def main_Screen():
     root.title("Horus")
     root.resizable(False, False)
 
-    icon_path = "icon.ico"
+    icon_path = "resources/images/icon.ico"
     #root.iconbitmap(icon_path)
 
     hf.centralize_Window(root)
@@ -281,8 +320,17 @@ def main_Screen():
 
     #media
 
-    imagem_search_path = hf.resource_path("resources/search_icon.png")
+    imagem_search_path = hf.resource_path("resources/images/search_icon.png")
     imagem_search = tk.PhotoImage(file=imagem_search_path)
+
+    imagem_clear_path = hf.resource_path("resources/images/clear_icon.png")
+    imagem_clear = tk.PhotoImage(file=imagem_clear_path)
+
+    imagem_up_path = hf.resource_path("resources/images/arrow_up.png")
+    imagem_up = tk.PhotoImage(file=imagem_up_path)
+
+    imagem_down_path = hf.resource_path("resources/images/arrow_down.png")
+    imagem_down = tk.PhotoImage(file=imagem_down_path)
 
     #Logica de estados
     
@@ -678,89 +726,378 @@ def main_Screen():
     log_visual_text = hf.ScrollableText(log_visual,width=415,height=450)
     log_visual_text.pack(fill="both", expand=True)
 
-    log_lista_search = tk.Text(log_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid", state="normal")
-    log_lista_search.place(x = 115, y = 40, width = 270, height = 30)
-    log_lista_search.place_forget()
+    log_button_search = tk.Button(log_frame, image=imagem_search, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), inserir_datas()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_search.place(x=80,y=85,width=30,height=30)
 
-    log_lista_context_search = tk.Text(log_frame, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid", state="normal")
-    log_lista_context_search.place(x = 500, y = 40, width = 270, height = 30)
-    log_lista_context_search.place_forget()
+    log_button_clear = tk.Button(log_frame, image=imagem_clear, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), build_log_list(1)), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_clear.place(x=80,y=120,width=30,height=30)
+    log_button_clear.place_forget()
 
-    log_button_search = tk.Button(log_frame, image=imagem_search, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(),habilitar_search_lista_logs()), width = 10, height = 2, **button_Style_Sidebar)
-    log_button_search.place(x=85,y=85,width=30,height=30)
+    log_button_search_context = tk.Button(log_frame, image=imagem_search, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), procurar_texto()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_search_context.place(x=930,y=85,width=30,height=30)
 
-    log_button_search_context = tk.Button(log_frame, image=imagem_search, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(),habilitar_search_contexto_logs()), width = 10, height = 2, **button_Style_Sidebar)
-    log_button_search_context.place(x=915,y=85,width=30,height=30)
+    log_button_context_next = tk.Button(log_frame, image=imagem_down, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), log_visual_text.go_next()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_context_next.place(x=930,y=155,width=30,height=30)
 
-    log_lista_search_confirm = log_button_search = tk.Button(log_frame, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
-    log_lista_search_confirm.place(x = 385, y = 40, width = 30, height = 30)
-    log_lista_search_confirm.place_forget()
+    log_button_context_back = tk.Button(log_frame, image=imagem_up, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), log_visual_text.go_back()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_context_back.place(x=930,y=120,width=30,height=30)
 
-    log_lista_context_search_confirm = tk.Button(log_frame, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
-    log_lista_context_search_confirm.place(x = 770, y = 40, width = 30, height = 30)
-    log_lista_context_search_confirm.place_forget()
-
-    log_button_AI = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_AI = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (run_contexto_AI()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_AI.place(x = 605, y = 550, width=150,height=85)
 
-    log_button_baixar = tk.Button(log_frame, text="Download", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_baixar = tk.Button(log_frame, text="Download", borderwidth=0, highlightthickness=0, command=lambda: (download_log()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_baixar.place(x = 765, y = 550, width=150,height=85)
+
+    def download_log():
+        if selected_log is not None:
+            def escreve_log(file_path,text):
+                with open(file_path, "w", encoding="utf-8") as file:
+                    file.write(text)
+            
+            hf.on_Click()
+            file_name = selected_log[0] + ".txt"
+            file_name = file_name.replace("/", "_")
+            if not os.path.exists(file_name):
+                escreve_log(file_name,selected_log[1])
+            else:
+                contador = 1
+                base, extension = os.path.splitext(file_name)
+                while os.path.exists(base + f"({contador})" + extension):
+                    contador+=1
+                escreve_log(base + f"({contador})" + extension, selected_log[1])
+        else:
+            janela_erro("Selecione um log!")
+    
+    def contexto_AI():
+        global selected_log
+        log_button_AI.place_forget()
+        pergunta = "Eu tenho esse log aqui, me de tudo de importante sobre ele como pontos chaves (sempre de os pontos chaves), possiveis senhas e informaçoes importantes: "
+        pergunta += selected_log[1]
+        resposta = model.generate_content(pergunta).text
+        button_Style_Ai = button_Style_Sidebar
+        button_Style_Ai["bg"] = '#2478ff'
+        button_Style_Ai["activebackground"] = '#1961d4'
+        hf.response_sound()
+        log_button_AI_response = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), janela_AI(resposta, log_button_AI_response)), width = 10, height = 2, **button_Style_Ai)
+        log_button_AI_response.place(x = 605, y = 550, width=150,height=85)
+        
+
+    def janela_AI(resposta,widget):
+        def proxima_resposta():
+            widget.place_forget()
+            log_button_AI.place(x = 605, y = 550, width=150,height=85)
+            aiW.destroy()
+        aiW = tk.Toplevel()
+        aiW.configure(bg='#3a3a3a')
+        aiW.resizable(False, False)
+        aiW.overrideredirect(True)
+        aiW.pack_propagate(False)
+        aiW.attributes("-topmost", True)
+        aiW.grab_set()
+        hf.centralize_Window(aiW,300,300)
+
+        hf.make_draggable(aiW)
+
+        button_confirm = {
+            "font": ("Anonymous Pro", 16, "bold"),
+            "bg": "#4CAF50",
+            "fg": "white",
+            "bd": 0,
+            "activebackground": "#45A049",
+            "activeforeground": "white"
+        }
+
+        texto_pos = tk.Frame(aiW, bg="#3a3a3a")
+        texto_pos.place(x = 10, y = 10, width=280, height=230)
+
+        texto = hf.ScrollableText(texto_pos, width=50,height=50)
+        texto.pack(fill="both", expand=True)
+
+        button1 = tk.Button(aiW, text="confirmar", command=lambda: (hf.on_Click(), proxima_resposta()), **button_confirm)
+        button1.place(x=100,y=250, width = 100, height = 40)
+
+        insere_texto(texto, resposta)
+
+        aiW.wait_window(aiW)
+
+    def run_contexto_AI():
+        global selected_log
+        if selected_log is None:
+            janela_erro("Selecione um log!")
+            return
+        hf.on_Click()
+        threading.Thread(target=contexto_AI).start()
 
     def adicionar_log():
         try:
-            global logs,temp
-            with open("testinhoLog.txt") as bd:
+            global logs, temp
+            with open("testinhoLog.txt", encoding="utf-8") as bd:
                 lines = bd.readlines()
                 try:
-                    atual = lines[temp].strip().split(",")
+                    atual = lines[temp].strip().split("#")
                 except:
                     pass
                 temp+=1
-            print(atual[0])
-            print(atual[1])
             logs[atual[0]] = {"desc": atual[1]}
-            build_log_list()
+            build_log_list(1)
         except:
             pass
 
-    def build_log_list():
-        def get_button_details_log(log):
-            insere_texto(log_visual_text, log["desc"].strip())
+    def build_log_list(case):
+        def get_button_details_log(date, log):
+            global selected_log
+            texto = log["desc"].strip()
+            selected_log = date, texto
+            insere_texto(log_visual_text, texto)
 
-        global logs
+        global logs, logs_sorted
         for child in log_Lista.scrollable_frame.winfo_children():
             child.destroy()
-        
-        for date, log in logs.items():
-            print(date)
-            print(log)
+
+        if case == 1:
+            lista = logs
+            log_button_clear.place_forget()
+            
+        else:
+            lista = logs_sorted
+            log_button_clear.place(x=80,y=120,width=30,height=30)
+        for date, log in lista.items():
             button = tk.Button(
                     log_Lista.scrollable_frame,
                     text = date,
-                    command = lambda log = log: get_button_details_log(log),
+                    command = lambda log = log: get_button_details_log(date, log),
                     **button_Style_Sidebar
                 )
             button.pack(pady=5, padx=0, fill="x", expand=True)
-
-    def habilitar_search_lista_logs():
-        if log_lista_search.winfo_ismapped():
-            log_lista_search.place_forget()
-            log_lista_search_confirm.place_forget()
-        else:
-            log_lista_search.place(x = 115, y = 40, width = 270, height = 30)
-            log_lista_search_confirm.place(x = 385, y = 40, width = 30, height = 30)
-
     
-    def habilitar_search_contexto_logs():
-        if log_lista_context_search.winfo_ismapped():
-            log_lista_context_search.place_forget()
-            log_lista_context_search_confirm.place_forget()
-        else:
-            log_lista_context_search.place(x = 500, y = 40, width = 270, height = 30)
-            log_lista_context_search_confirm.place(x = 770, y = 40, width = 30, height = 30)
-        return
+    def sort_logs():
+        global logs, logs_sorted, Data_start, Data_finish
+        logs_sorted = {}
+        for chave, valor in logs.items():
+            dia, mes, ano = chave.split("/")
+            ano = "20" + ano
+            data = datetime.strptime(f"{dia}/{mes}/{ano}", "%d/%m/%Y")
+            if data >= Data_start and data <= Data_finish:
+                logs_sorted[chave] = valor
+        build_log_list(0)
+
+    def inserir_datas():
+        global Data_start
+        global Data_finish
+
+        Data_start = datetime.min
+        Data_finish = datetime.max
+
+        def validate_input(action, value_if_allowed):
+            if action == "1":
+                return value_if_allowed.isdigit() and len(value_if_allowed) <= 2
+            return True
+        
+        def validar_data(dia1,dia2,mes1,mes2,ano1,ano2):
+            global Data_start
+            global Data_finish
+            try:
+                ano1 = "20" + ano1
+                ano2 = "20" + ano2
+                data_date_ini = datetime.strptime(f"{dia1}/{mes1}/{ano1}", "%d/%m/%Y")
+                data_date_fim = datetime.strptime(f"{dia2}/{mes2}/{ano2}", "%d/%m/%Y")
+                if data_date_fim < data_date_ini:
+                    raise Exception()
+                Data_start = data_date_ini
+                Data_finish = data_date_fim
+                hf.on_Click()
+                sort_logs()
+                dataW.destroy()
+            except:
+                janela_erro("Digite uma data valida!", dataW)
+
+        dataW = tk.Toplevel()
+        dataW.configure(bg='#3a3a3a')
+        dataW.resizable(False, False)
+        dataW.overrideredirect(True)
+        dataW.pack_propagate(False)
+        dataW.attributes("-topmost", True)
+        dataW.grab_set()
+        hf.centralize_Window(dataW,300,300)
+
+        hf.make_draggable(dataW)
+
+        vcmd = (dataW.register(validate_input), '%d', '%P')
+
+        button_confirm = {
+            "font": ("Anonymous Pro", 16, "bold"),
+            "bg": "#4CAF50",
+            "fg": "white",
+            "bd": 0,
+            "activebackground": "#45A049",
+            "activeforeground": "white"
+        }
+
+        entry_options = {
+        "validate": "key",
+        "validatecommand": vcmd,
+        "font": ("Arial", 16),
+        "justify": "center",
+        "bg": "#242323",              # Cor de fundo
+        "fg": "#ffffff",             # Cor do texto
+        "relief": "solid",           # Borda sólida
+        "highlightbackground": "#4CAF50",  # Cor da borda
+        "highlightthickness": 2      # Espessura da borda
+        }
+
+        texto_pos_ini = tk.Frame(dataW, bg="#3a3a3a")
+        texto_pos_ini.place(x = 10, y = 10, width=290, height=20)
+
+        texto_ini = tk.Label(texto_pos_ini, text="Insira a data Inicial", font=("Anonymous Pro", 16, "bold"), bg = "#3a3a3a", fg = "white")
+        texto_ini.pack(expand=True)
+
+        dia_ini = tk.Entry(dataW, **entry_options)
+        dia_ini.place(x=70, y=50, width=40, height=40)
+
+        barrinha1 = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
+        barrinha1.place(x=120, y=50)
+
+        mes_ini = tk.Entry(dataW, **entry_options)
+        mes_ini.place(x=140, y=50, width=40, height=40)
+
+        barrinha2 = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
+        barrinha2.place(x=190, y=50)
+
+        ano_ini = tk.Entry(dataW, **entry_options)
+        ano_ini.place(x=210, y=50, width=40, height=40)
+
+        texto_pos_fim = tk.Frame(dataW, bg="#3a3a3a")
+        texto_pos_fim.place(x = 10, y = 110, width=290, height=20)
+
+        texto_fim = tk.Label(texto_pos_fim, text="Insira a data final", font=("Anonymous Pro", 16, "bold"), bg = "#3a3a3a", fg = "white")
+        texto_fim.pack(expand=True)
+
+        dia_fim = tk.Entry(dataW, **entry_options)
+        dia_fim.place(x=70, y=150, width=40, height=40)
+
+        barrinha1 = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
+        barrinha1.place(x=120, y=150)
+
+        mes_fim = tk.Entry(dataW, **entry_options)
+        mes_fim.place(x=140, y=150, width=40, height=40)
+
+        barrinha2 = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
+        barrinha2.place(x=190, y=150)
+
+        ano_fim = tk.Entry(dataW, **entry_options)
+        ano_fim.place(x=210, y=150, width=40, height=40)
+
+        formato_ini = tk.Label(dataW, text="Formato: dd / mm / yy", font=("Anonymous Pro", 10), bg="#3a3a3a", fg="white")
+        formato_ini.place(x=80, y=200)
+
+        button1 = tk.Button(dataW, text="confirmar", command=lambda: (validar_data(dia_ini.get(),dia_fim.get(),mes_ini.get(),mes_fim.get(),ano_ini.get(),ano_fim.get())), **button_confirm)
+        button1.place(x=90,y=230, width = 120, height = 50)
+
+        dataW.wait_window(dataW)
+
+    def perform_search():
+        global Search_word
+        log_visual_text.search_text(Search_word)
+
+    def procurar_texto():
+        def confirm_text():
+            global Search_word
+            Search_word = texto.get()
+            print(Search_word)
+            perform_search()
+            searchW.destroy()
+        searchW = tk.Toplevel()
+        searchW.configure(bg='#3a3a3a')
+        searchW.resizable(False, False)
+        searchW.overrideredirect(True)
+        searchW.pack_propagate(False)
+        searchW.attributes("-topmost", True)
+        searchW.grab_set()
+        hf.centralize_Window(searchW,300,300)
+
+        hf.make_draggable(searchW)
+
+        button_confirm = {
+            "font": ("Anonymous Pro", 16, "bold"),
+            "bg": "#4CAF50",
+            "fg": "white",
+            "bd": 0,
+            "activebackground": "#45A049",
+            "activeforeground": "white"
+        }
+
+        texto_pos = tk.Frame(searchW, bg="#3a3a3a")
+        texto_pos.place(x = 10, y = 10, width=280, height=230)
+
+        texto = hf.ScrollableText(texto_pos, width=50,height=50)
+        texto.pack(fill="both", expand=True)
+
+        button1 = tk.Button(searchW, text="confirmar", command=lambda: (hf.on_Click(), confirm_text()), **button_confirm)
+        button1.place(x=100,y=250, width = 100, height = 40)
+
+        searchW.wait_window(searchW)
+
 
     frames["Log"] = log_frame
+
+    #Estilos das configuracoes
+    global download_path_default
+    download_path_default = os.path.abspath(__file__)
+    pular_intro = 0
+
+    scale_config = {
+        "from_": 0,
+        "to": 100,
+        "orient": "horizontal",
+        "command": hf.ajustar_volume,
+        "bg": "#252525",
+        "length": 300,
+        "bd": 0,
+        "highlightthickness": 0,
+        "showvalue": False,
+        "resolution": 10
+    }
+
+    def mudar_path():
+        global download_path_default
+        download_path = filedialog.askdirectory(title="Escolher um diretório")
+        if not download_path:
+            download_path = download_path_default
+        config_label_download_path.config(text=download_path)
+        download_path_default = download_path
+
+    conf_frame = tk.Frame(root, width=1030, height=720, bg="#252525")
+    conf_frame.place(x=250,y = 0)
+
+    config_label_download = tk.Label(conf_frame, text="Path de download:", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+    config_label_download.place(x=115, y=85)
+    
+    config_label_download_path = tk.Label(conf_frame, text=download_path_default, font=("Anonymous Pro", 11, "bold"), bg = "#252525", fg = "gray")
+    config_label_download_path.place(x=115, y=120)
+
+    config_label_download_button = tk.Button(conf_frame, text="Mudar", command=lambda: (hf.on_Click(), mudar_path()), **button_Style_Sidebar)
+    config_label_download_button.place(x=115, y=150, width=100,height=30)
+
+    config_label_volume = tk.Label(conf_frame, text="Volume:", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+    config_label_volume.place(x=115, y=200)
+
+    config_label_volume_slider = tk.Scale(conf_frame,**scale_config)
+    config_label_volume_slider.set(100)
+    config_label_volume_slider.place(x=210, y=210)
+
+    config_label_intro = tk.Label(conf_frame, text="Pular Intro:", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+    config_label_intro.place(x=115,y=250)
+
+    config_label_intro_checkbox = tk.Checkbutton(conf_frame, variable=pular_intro, bg="#252525",highlightthickness=0,activebackground="#252525",)
+    config_label_intro_checkbox.place(x=235,y=255)
+
+    largura = config_label_intro.winfo_reqwidth()
+    altura = config_label_intro.winfo_reqheight()
+
+    print(largura)
+    print(altura)
+
+    frames["Config"] = conf_frame
 
     #Botoes
 
@@ -773,13 +1110,12 @@ def main_Screen():
     log_button = tk.Button(sidebar, text="Logs", command=lambda: (hf.on_Click(), carrega_frame("Log")), **button_Style_Sidebar)
     log_button.pack(pady=10, padx=10, fill="x")
 
-    config_button = tk.Button(sidebar, text="Configurações", command=lambda: (hf.on_Click(), teste()), **button_Style_Sidebar)
+    config_button = tk.Button(sidebar, text="Configurações", command=lambda: (hf.on_Click(), carrega_frame("Config")), **button_Style_Sidebar)
     config_button.pack(pady=10, padx=10, fill="x")
 
     sync_button = tk.Button(sidebar, text="Sync test", command=lambda: (hf.on_Click(), adicionar_log()), **button_Style_Sidebar)
     sync_button.pack(pady=10, padx=10, fill="x")
     
-    #carrega_frame("Config")
 
     buttons_sidebar = [
         home_button,

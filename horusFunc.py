@@ -4,13 +4,12 @@ import shutil
 import tkinter as tk
 from tkinter import ttk
 import pygame
-from tkcalendar import Calendar
 from datetime import datetime
 
-try:
-    pygame.mixer.init()
-except:
-    pass
+global sound_state, palavra
+
+sound_state = False
+palavra = ""
 
 def centralize_Window(root,width = None,height = None):
     
@@ -35,43 +34,46 @@ def resource_path(relative_path):
 
     return os.path.join(base_path, relative_path)
 
-def install_font(font_path):
-    font_name = os.path.basename(font_path)
-    return False
+def start_audio():
+    global sound_state
     try:
-        # Check if the font file exists
-        if not os.path.isfile(font_path):
-            print("Font file not found.")
-            return False
-        font_dir = os.path.join(os.environ["WINDIR"], "Fonts")
-        destination = os.path.join(font_dir, font_name)
-        shutil.copy(font_path, destination)
-        font_name_no_ext = os.path.splitext(font_name)[0]
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts", 0, winreg.KEY_SET_VALUE) as key:
-            winreg.SetValueEx(key, font_name_no_ext, 0, winreg.REG_SZ, font_name)
-        return True
-    except Exception as e:
-        print(f"Failed to install font: {e}")
-        return False
-
-def home_Page():
-    
-    return
-
-def on_Enter_Sidebar(event):
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/Hover.mp3"))
-        pygame.mixer.Sound.play(sound)
+        pygame.mixer.init()
+        sound_state = True
     except:
         pass
+
+def stop_audio():
+    global sound_state
+    try:
+        pygame.mixer.quit()
+        sound_state = False
+    except:
+        pass
+
+def play_music(path):
+    global sound_state
+    if sound_state:
+        try:
+            sound = pygame.mixer.music.load(resource_path(path))
+            pygame.mixer.music.play()
+        except:
+            pass
+
+def play_sound(path):
+    global sound_state
+    if sound_state:
+        try:
+            sound = pygame.mixer.Sound(resource_path(path))
+            pygame.mixer.Sound.play(sound)
+        except:
+            pass
+
+def on_Enter_Sidebar(event):
+    play_sound("resources/audio/sound/Hover.mp3")
     event.widget.config(bg="#3bdb42")
 
 def on_Enter_Dominar(event):
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/Hover.mp3"))
-        pygame.mixer.Sound.play(sound)
-    except:
-        pass
+    play_sound("resources/audio/sound/Hover.mp3")
     event.widget.config(bg="#db2a16")
 
 def on_Leave_Sidebar(event):
@@ -81,24 +83,46 @@ def on_Leave_Dominar(event):
     event.widget.config(bg="#a1392d")
 
 def on_Click():
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/Click.mp3"))
-        pygame.mixer.Sound.play(sound)
-    except:
-        pass
+    play_sound("resources/audio/sound/Click.mp3")
+
 def on_Click_Dom_On():
+    play_sound("resources/audio/sound/DominationIn.mp3")
+
+def on_Click_Dom_Off():
+    play_sound("resources/audio/sound/DominationOut.mp3")
+
+def error_sound():
+    play_sound("resources/audio/sound/error.mp3")
+
+def response_sound():
+    play_sound("resources/audio/sound/response.mp3")
+
+def ajustar_volume(val):
+    volume = int(val) / 100
     try:
-        sound = pygame.mixer.Sound(resource_path("resources/DominationIn.mp3"))
-        pygame.mixer.Sound.play(sound)
+        pygame.mixer.music.set_volume(volume)
+        pygame.mixer.Sound.set_volume(volume)
     except:
         pass
 
-def on_Click_Dom_Off():
-    try:
-        sound = pygame.mixer.Sound(resource_path("resources/DominationOut.mp3"))
-        pygame.mixer.Sound.play(sound)
-    except:
-        pass
+
+def make_draggable(widget):
+    # Create a Frame inside the Toplevel window
+    frame = tk.Frame(widget, bg='#3a3a3a')
+    frame.pack(expand=True, fill='both')
+
+    def start_drag(event):
+        widget.x = event.x
+        widget.y = event.y
+
+    def do_drag(event):
+        x = widget.winfo_x() - widget.x + event.x
+        y = widget.winfo_y() - widget.y + event.y
+        widget.geometry(f"+{x}+{y}")
+
+    # Bind mouse events for dragging to the Frame
+    frame.bind("<Button-1>", start_drag)
+    frame.bind("<B1-Motion>", do_drag)
 
 class ScrollableFrame(tk.Frame):
     def __init__(self, container, width=400, height=400, *args, **kwargs):
@@ -120,7 +144,6 @@ class ScrollableFrame(tk.Frame):
         )
         
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
-        self.scrollbar.pack(side="right", fill="y")
         
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         
@@ -159,7 +182,6 @@ class ScrollableText(tk.Frame):
         )
         
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
-        self.scrollbar.pack(side="right", fill="y")
         
         # Configuring the scrollbar and canvas
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -180,12 +202,18 @@ class ScrollableText(tk.Frame):
         self.text.bind("<Configure>", self.on_text_configure)
         self.canvas.bind("<Configure>", self.on_canvas_configure)
 
-    def on_text_configure(self, event=None):
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        # Search state
+        self.search_results = []  # List of all match positions
+        self.current_index = -1  # Current position in search results
     
+    def on_text_configure(self, event):
+        # Update the scrollable region of the canvas when the text content changes
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
     def on_canvas_configure(self, event):
-        canvas_width = event.width
-        self.canvas.itemconfig(self.text_window, width=canvas_width)
+        # Adjust the scroll region when the canvas is resized
+        self.canvas.itemconfig(self.text_window, width=event.width)
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     # Wrapper methods for the Text widget
     def insert(self, index, text, *args):
@@ -196,3 +224,65 @@ class ScrollableText(tk.Frame):
 
     def config(self, **kwargs):
         self.text.config(**kwargs)
+
+    # Search functionality
+    def search_text(self, target):
+        global palavra
+        self.text.tag_remove("highlight", "1.0", tk.END)  # Clear previous highlights
+        self.search_results = []  # Clear previous search results
+        self.current_index = -1  # Reset current index
+        palavra = target
+
+        if target:  # Search only if there's text
+            start_pos = "1.0"
+            while True:
+                start_pos = self.text.search(target, start_pos, stopindex=tk.END)
+                if not start_pos:
+                    break  # Exit if no more matches
+                end_pos = f"{start_pos}+{len(target)}c"
+                self.text.tag_add("highlight", start_pos, end_pos)  # Highlight match
+                self.search_results.append((start_pos, end_pos))  # Store match positions
+                start_pos = end_pos  # Move past the match
+
+        # Configure the highlight tag
+        self.text.tag_config("highlight", background="yellow", foreground="black")
+        self.text.tag_config("atual", background="green", foreground="black")
+        if self.search_results:
+            self.current_index = 0
+            self.text.see(self.search_results[0][0])  # Show the first match
+            self.start_after_search()
+
+    def start_after_search(self):
+        if self.search_results:
+            end_pos = f"{self.search_results[self.current_index][0]}+{len(palavra)}c"
+            self.text.tag_add("atual", self.search_results[self.current_index][0], end_pos)
+
+    def go_next(self):
+        if self.search_results:
+            self.current_index = (self.current_index + 1) % len(self.search_results)
+            print(self.search_results)
+            self.past_index = (self.current_index - 1) % len(self.search_results)
+            end_pos_past = f"{self.search_results[self.past_index][0]}+{len(palavra)}c"
+            self.text.tag_remove("atual", self.search_results[self.past_index][0], end_pos_past)
+
+            end_pos = f"{self.search_results[self.current_index][0]}+{len(palavra)}c"
+            self.text.tag_add("atual", self.search_results[self.current_index][0], end_pos)
+
+            self.text.see(self.search_results[self.current_index][0])
+
+    def go_back(self):
+        if self.search_results:
+            self.current_index = (self.current_index - 1) % len(self.search_results)
+
+            self.past_index = (self.current_index + 1) % len(self.search_results)
+            end_pos_past = f"{self.search_results[self.past_index][0]}+{len(palavra)}c"
+            self.text.tag_remove("atual", self.search_results[self.past_index][0], end_pos_past)
+
+            end_pos = f"{self.search_results[self.current_index][0]}+{len(palavra)}c"
+            self.text.tag_add("atual", self.search_results[self.current_index][0], end_pos)
+
+            self.text.see(self.search_results[self.current_index][0])
+
+    def get(self, start="1.0", end=tk.END):
+        """Get text from the internal Text widget."""
+        return self.text.get(start, end).strip()
