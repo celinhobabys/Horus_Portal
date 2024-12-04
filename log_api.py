@@ -18,7 +18,6 @@ def initialize_database():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS log (
         date TEXT PRIMARY KEY,
-        file_name TEXT NOT NULL,
         file_content BLOB NOT NULL
     )
     """)

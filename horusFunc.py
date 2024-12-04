@@ -124,6 +124,11 @@ def make_draggable(widget):
     frame.bind("<Button-1>", start_drag)
     frame.bind("<B1-Motion>", do_drag)
 
+def validate_input(action, value_if_allowed):
+    if action == "1":
+        return value_if_allowed.isdigit() and len(value_if_allowed) <= 2
+    return True
+
 class ScrollableFrame(tk.Frame):
     def __init__(self, container, width=400, height=400, *args, **kwargs):
         super().__init__(container, *args, **kwargs, bd=0, highlightthickness=0)
@@ -144,6 +149,7 @@ class ScrollableFrame(tk.Frame):
         )
         
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
+        self.scrollbar.pack(side="right", fill="y")
         
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         
