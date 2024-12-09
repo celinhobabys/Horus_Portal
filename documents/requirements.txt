@@ -5,3 +5,5 @@ ngrok == 1.4.0
 fastapi == 0.115.5
 python-multipart == 0.0.17
 uvicorn == 0.32.1
+paho-mqtt == 2.1.0
+google.generativeAI == 0.8.3
