@@ -18,7 +18,7 @@ def initialize_database():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS log (
         date TEXT PRIMARY KEY,
-        file_content BLOB NOT NULL
+        file_content TEXT NOT NULL
     )
     """)
     conn.commit()
@@ -31,23 +31,26 @@ log_router = APIRouter(
     tags=["log"]
 )
 
+class log(BaseModel):
+    date: str
+    file: str
+
 @log_router.post("/register/")
-async def register_log(date: str = Form(...), file: UploadFile = None):
+async def register_log(log: log):
     """
     Registers a log entry with a date and file.
     """
     # Validate date format
+    date = log.date
+    file = log.file
     try:
-        formatted_date = datetime.strptime(date, "%d/%m/%Y").strftime("%Y-%m-%d")
+        formatted_date = datetime.strptime(date, "%y/%m/%d").strftime("%Y-%m-%d")
+        print("formatted_date", formatted_date)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format. Use dd/mm/yyyy.")
-
-    # Ensure file is provided
-    if not file:
-        raise HTTPException(status_code=400, detail="File is required.")
+        print("DATE ERROR")
+        raise HTTPException(status_code=400, detail="Invalid date format. Use yy/mm/dd.")
 
     # Read the file content
-    file_content = await file.read()
 
     try:
         # Insert the data into the database
@@ -56,12 +59,13 @@ async def register_log(date: str = Form(...), file: UploadFile = None):
         cursor.execute("""
         INSERT INTO log (date, file_content)
         VALUES (?, ?)
-        """, (formatted_date, file_content))
+        """, (formatted_date, file))
         conn.commit()
         conn.close()
 
         return JSONResponse(content={"message": "Log entry registered successfully."}, status_code=201)
     except Exception as e:
+        print("error", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 @log_router.get("/list/")
@@ -80,7 +84,7 @@ async def list_logs():
 
         # Format the logs into a structured response
         log_list = [
-            {"date": datetime.strptime(log[0], "%Y-%m-%d").strftime("%d/%m/%Y"), "content": log[1].decode("utf-8")} for log in logs
+            {"date": datetime.strptime(log[0], "%Y-%m-%d").strftime("%d/%m/%Y"), "content": log[1]} for log in logs
         ]
 
         return JSONResponse(content={"logs": log_list}, status_code=200)
