@@ -648,14 +648,14 @@ def main_Screen():
                 horaS = hora.get()
                 minutoS = minuto.get()
 
-                secure_date = datetime.strptime(data_entry.get(), "%d/%m/%Y").strftime("%y-%m-%d")
-                secure_time = datetime.strptime(time_entry.get(), "%H:%M").strftime("%H-%M")
+                secure_date = datetime.strptime(f"{diaS}/{mesS}/{anoS}", "%d/%m/%Y").strftime("%y-%m-%d")
+                secure_time = datetime.strptime(f"{horaS}:{minutoS}", "%H:%M").strftime("%H-%M")
             except:
                 janela_erro("Inválido!")
                 agendarW.destroy()
                 return
 
-            cmd_schedule(routines[routine]["command"], f"{secure_date} {secure_time}")
+            cmd_schedule(routines[routine]["command"], f"{secure_date}_{secure_time}")
             agendarW.destroy()
 
         agendarW = tk.Toplevel()
@@ -861,16 +861,18 @@ def main_Screen():
             cursor.execute("SELECT date, file_content FROM log")
             linhas = cursor.fetchall()
             datas = [linha[0] for linha in linhas]
-            texto = [linha[1].decode('utf-8') for linha in linhas]
+            texto = [linha[1] for linha in linhas]
             for (i,el) in enumerate(datas):
                 logs[datas[i]] = {"desc": texto[i]}
             conn.close()
             build_log_list(1)
         except:
+            print("error")
             pass
 
     def sync_logs():
         def watch_sync_finished(msg):
+            print("finishing logs")
             if msg == "Sync terminado.":
                 update_logs()
                 set_topic_handler(command_response_topic, lambda msg: print(msg))
@@ -1065,7 +1067,7 @@ def main_Screen():
 
         searchW.wait_window(searchW)
 
-
+    update_logs()
     frames["Log"] = log_frame
 
     #Estilos das configuracoes

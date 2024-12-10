@@ -66,6 +66,7 @@ async def register_log(log: log):
         return JSONResponse(content={"message": "Log entry registered successfully."}, status_code=201)
     except Exception as e:
         print("error", e)
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 @log_router.get("/list/")

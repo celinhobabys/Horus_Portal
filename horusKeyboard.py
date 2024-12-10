@@ -59,7 +59,8 @@ class QWERTYKeyboard:
         "SHIFT_R": "Shift",
         "SHIFT_L": "Shift",
         "PERIOD": ".",
-        "COMMA": ","
+        "COMMA": ",",
+        "RETURN": "Enter"
     }
 
     inverse_mqtt_mappings = {
@@ -72,7 +73,8 @@ class QWERTYKeyboard:
         'Esc': 'ESCAPE',
         'Shift': 'SHIFT_L',
         '.': 'PERIOD',
-        ',': 'COMMA'
+        ',': 'COMMA',
+        'Enter': "RETURN"
     }
 
 
@@ -258,6 +260,10 @@ class QWERTYKeyboard:
         # act_label = action[1]
         # if act_label == "BackSpace":
         #     act_label = "Backspace"
+
+        if label == "Win_L" or label == "Win_R":
+            label = "Windows"
+
         if label.upper() in self.mqtt_mappings:
             label = self.mqtt_mappings[label.upper()]
         action = (action[0], label, action[2])
