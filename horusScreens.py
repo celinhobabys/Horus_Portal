@@ -31,69 +31,53 @@ command_response_topic = "teclado_espiao/command_response"
 # COMANDOS
 def send_cmd(cmd, params):
     global mqtt_client
-    cmd_message = f"{cmd} [{','.join(params)}]"
+    cmd_message = f"{cmd} {' '.join(params)}"
 
     mqtt_client.publish(command_request_topic, cmd_message)
 
-def cmd_schedule(routine_name, routine_cmd, date):
+def cmd_schedule(routine_cmd, date):
 
-    send_cmd("SCHEDULE", [routine_name, date, routine_cmd])
+    send_cmd("SCHEDULE", [date, routine_cmd])
 
-def cmd_routine(routine_name, routine_cmd):
+def cmd_routine(routine_cmd):
 
-    send_cmd("ROUTINE", [routine_name, routine_cmd])
+    send_cmd("ROUTINE", [routine_cmd])
 
 def cmd_sync_log():
     global log_api
 
-    send_cmd("SYNC_LOG", log_api)
+    send_cmd("SYNC_LOG", [log_api])
+
+def cmd_change_mode():
+
+    send_cmd("CHANGE_MODE", [])
 
 keyboards = {}
 
 def action_handler_factory(text_box, f_text_box):
-    def handle_action(action):
-        if action[1] == "PRESSED":
-            text_box.insert("end", str(action) + " ")
-        elif action[1] == "RELEASED":
-            text_box.insert("end", str(action) + " ")
+    def handle_action(action, formatted):
+        global Dom, mqtt_client
+        print(action)
+        text_box.config(state="normal")
+        f_text_box.config(state="normal")
+        
+        action_mode = action[2].strip("'")
+        print("action_mode", action_mode)
+        if action_mode == "p":
+            print("formatted", formatted)
+            if formatted == None:
+                f_text_box.delete("end-2c", "end-1c")
+            else:
+                f_text_box.insert("end", formatted)
+        
+        text_box.insert("end", str(action) + " ")
+        text_box.config(state="disabled")
+        f_text_box.config(state="disabled")
 
-            letter = action[0]
-            
-            if letter == "SPACE":
-                letter = " "
-            if letter == "CONTROL":
-                letter = ""
-
-            f_text_box.insert("end", letter)
-        else:
-            print(f"ERROR {action}")
+        if Dom:
+            tecla_text = f"{action[1]} {action_mode};;"
+            mqtt_client.publish(teclas_in, tecla_text)
     return handle_action
-    
-def key_listener_factory(keyboard, text_box, f_text_box): 
-    def listener(msg):
-        msg = msg.payload.decode('utf-8')
-        msg = msg.strip("()")
-        msg = msg.replace(" ", "")
-        msg = msg.replace("'", "")
-        action = msg.split(",")
-        if action[1] == "PRESSED":
-            keyboard.highlight_key(action[0])
-            text_box.insert("end", str(action) + " ")
-        elif action[1] == "RELEASED":
-            keyboard.reset_key(action[0])
-            text_box.insert("end", str(action) + " ")
-
-            letter = action[0]
-            
-            if letter == "SPACE":
-                letter = " "
-            if letter == "CONTROL":
-                letter = ""
-
-            f_text_box.insert("end", letter)
-        else:
-            print(f"ERROR {action}")
-    return listener
 
 def confirm(text, text_Y, text_N):
     global Confirmar
@@ -249,14 +233,16 @@ def main_Screen():
     def on_connect( client, userdata, flags, rc):
         # Subscribing in on_connect() means that if we lose the connection and
         # reconnect then subscriptions will be renewed.
-        client.subscribe(teclas_in)
+        client.subscribe(teclas_out)
+        client.subscribe(command_response_topic)
 
         # The callback for when a PUBLISH message is received from the server.
     def on_message( client, userdata, msg):
         topic = str(msg.topic)
-        message = str(msg.payload.decode("utf-8"))
+        message = str(msg.payload.decode('utf-8'))
+        print("MESSAGE:", message)
         if topic in topic_handlers:
-            topic_handlers[topic](msg)
+            topic_handlers[topic](message)
 
     def start_mqtt():
         global mqtt_client
@@ -337,21 +323,33 @@ def main_Screen():
         for frame in frames:
             frames[frame].config(bg=color)
 
+    def dominate():
+        print("DOMINATION MODE")
+        paint_frames('#502525')
+        rotinas_botoes.config(bg='#502525')
+        keyboards["Home"].bind_keys()
+        hf.on_Click_Dom_On()
+
+    def release():
+        print("RELEASE MODE")
+        paint_frames('#252525')
+        rotinas_botoes.config(bg='#252525')
+        keyboards["Home"].unbind_keys()
+        hf.on_Click_Dom_Off()
+
     def change_state():
         global Dom
         global Confirmar
         if Dom:
-            paint_frames('#252525')
-            rotinas_botoes.config(bg='#252525')
+            release()
             Dom = False
-            hf.on_Click_Dom_Off()
+            cmd_change_mode()
         else:
             confirm("Tem Certeza?","Sim","Não")
             if Confirmar:
-                paint_frames('#502525')
-                rotinas_botoes.config(bg='#502525')
+                dominate()
                 Dom = True
-                hf.on_Click_Dom_On()
+                cmd_change_mode()
         
     
     #Estilos dos Botões
@@ -401,8 +399,8 @@ def main_Screen():
     home_Principal_GUI_keyboardInput_format = tk.Frame(home_Principal, width=500, height=250, bd=1, relief="solid", bg="#242323")
     home_Principal_GUI_keyboardInput_format.place(x=0,y=0)
 
-    home_Principal_GUI_keyboardInput_dump = tk.Frame(home_Principal, width=300, height=250, bd=1, relief="solid", bg="#242323")
-    home_Principal_GUI_keyboardInput_dump.place(x=500,y=0)
+    home_Principal_GUI_keyboardInput_dump = tk.Frame(home_Principal, bd=1, relief="solid", bg="#242323")
+    home_Principal_GUI_keyboardInput_dump.place(x=500,y=0, width=300, height=250)
 
     home_Principal_GUI_keyboardInput_realTime = tk.Frame(home_Principal, width=800, height=250, bd=1, relief="solid", bg="#242323")
     home_Principal_GUI_keyboardInput_realTime.place(x=0,y=250)
@@ -416,9 +414,28 @@ def main_Screen():
     home_Principal_GUI_keyboardInput_dump_Text.config(state="normal")
 
     keyboards["Home"] = QWERTYKeyboard(root, home_Principal_GUI_keyboardInput_realTime,110, 20)
-    keyboards["Home"].set_mode("listen")
+    keyboards["Home"].set_mode("typing", action_handler_factory(home_Principal_GUI_keyboardInput_dump_Text, home_Principal_GUI_keyboardInput_format_Text))
 
-    set_topic_handler(teclas_in, key_listener_factory(keyboards["Home"], home_Principal_GUI_keyboardInput_dump_Text, home_Principal_GUI_keyboardInput_format_Text))
+    def label_received(msg):
+        if len(msg.strip(" ")) == 0:
+            return
+        print("KEY OUT: ", msg)
+        msg = msg.strip(";")
+        msg = msg.replace("'", "")
+
+        params = msg.split(" ")
+        label = params[0]
+        action = params[1]
+
+        print("LABEL", label)
+        print("ACTION", action)
+
+        if action == "p":
+            keyboards["Home"].label_pressed(label)
+        else:
+            keyboards["Home"].label_released(label)
+
+    set_topic_handler(teclas_out, label_received)
 
     #Estilo das Rotinas
 
@@ -487,7 +504,7 @@ def main_Screen():
 
         routine = routines[selected_routine]
 
-        cmd_routine(selected_routine, routine["command"])
+        cmd_routine(routine["command"])
 
     play_routine_button = tk.Button(rotinas_botoes, text="Play", command=lambda: (hf.on_Click(), play_routine()), **button_Style_Sidebar)
     play_routine_button.place(x=0, y=180, width=300, height=70)
@@ -586,11 +603,11 @@ def main_Screen():
 
         texto_Formatado_Frame_Text = tk.Text(texto_Formatado_Frame, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
         texto_Formatado_Frame_Text.pack(fill="both",expand=True)
-        texto_Formatado_Frame_Text.config(state="normal")
+        texto_Formatado_Frame_Text.config(state="disabled")
 
         texto_Dump_Frame_Text = tk.Text(texto_Dump_Frame, font=("Anonymous Pro", 11), bg="#242323", fg="white", highlightthickness=0, bd=0)
         texto_Dump_Frame_Text.pack(fill="both",expand=True)
-        texto_Dump_Frame_Text.config(state="normal")
+        texto_Dump_Frame_Text.config(state="disabled")
 
         button = tk.Button(gravar, text="START", width = 10, height = 2, **button_Style)
         button.place(x=800, y=350, width = 300 , height = 150)
@@ -631,14 +648,14 @@ def main_Screen():
                 horaS = hora.get()
                 minutoS = minuto.get()
 
-                secure_date = datetime.strptime(f"{diaS}/{mesS}/{anoS}", "%d/%m/%Y").strftime("%d/%m/%Y")
-                secure_time = datetime.strptime(f"{horaS}:{minutoS}", "%H:%M").strftime("%H:%M")
+                secure_date = datetime.strptime(data_entry.get(), "%d/%m/%Y").strftime("%y-%m-%d")
+                secure_time = datetime.strptime(time_entry.get(), "%H:%M").strftime("%H-%M")
             except:
                 janela_erro("Inválido!")
                 agendarW.destroy()
                 return
 
-            cmd_schedule(routine, routines[routine]["command"], f"{secure_date} {secure_time}")
+            cmd_schedule(routines[routine]["command"], f"{secure_date} {secure_time}")
             agendarW.destroy()
 
         agendarW = tk.Toplevel()
@@ -745,7 +762,7 @@ def main_Screen():
     log_button_context_back = tk.Button(log_frame, image=imagem_up, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), log_visual_text.go_back()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_context_back.place(x=930,y=120,width=30,height=30)
 
-    log_button_Sync = tk.Button(log_frame, image=imagem_sync, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(),adicionar_log()), width = 10, height = 2, **button_Style_Sidebar)
+    log_button_Sync = tk.Button(log_frame, image=imagem_sync, borderwidth=0, highlightthickness=0, command=lambda: (hf.on_Click(), sync_logs()), width = 10, height = 2, **button_Style_Sidebar)
     log_button_Sync.place(x=500,y=550, width = 95, height=85)
 
     log_button_AI = tk.Button(log_frame, text="AI", borderwidth=0, highlightthickness=0, command=lambda: (run_contexto_AI()), width = 10, height = 2, **button_Style_Sidebar)
@@ -836,7 +853,7 @@ def main_Screen():
         hf.on_Click()
         threading.Thread(target=contexto_AI).start()
 
-    def adicionar_log():
+    def update_logs():
         try:
             global logs
             conn = sqlite3.connect('logs.db')
@@ -851,6 +868,15 @@ def main_Screen():
             build_log_list(1)
         except:
             pass
+
+    def sync_logs():
+        def watch_sync_finished(msg):
+            if msg == "Sync terminado.":
+                update_logs()
+                set_topic_handler(command_response_topic, lambda msg: print(msg))
+            
+        set_topic_handler(command_response_topic, watch_sync_finished)
+        cmd_sync_log()
 
     def build_log_list(case):
         def get_button_details_log(date, log):
