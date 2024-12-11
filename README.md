@@ -27,15 +27,27 @@ CONFIGURAÇÕES
 
 Apenas para as preferências do usuário.
 
+
 **TECNOLOGIAS**
 
-ARDUINO LEONARDO
+- ARDUINO LEONARDO
+
 Um microcontrolador que pode ser lido como um teclado USB para o computador.
 
+- ESP32-S3
+
+O esp32 foi utilizado como uma ponte entre o Arduino e a interface do espião. Ele salva todos os caracteres digitados pelo usuário em um sd-card como um log diário e, via conexão wifi em request http, envia esses logs para a interface do espião. 
+ 
+Além disso, via mqtt, ele recebe diversos comandos permitindo que o espião bloqueie o acesso do usuário ao teclado, que ele digite no computador do usuário e que ele agende rotinas de teclas a serem digitadas em horários definidos.
+
+
 **ESQUEMÁTICA CIRCUITO**
+
 Foi utilizado o software Fritizing. Foi utilizado um divisor de tensão para diminuir a tensão (5V) do TX do arduino para o RX do ESP32 (3.3V).
+
 ![image](https://github.com/user-attachments/assets/4921ecea-22f8-4678-ab55-c594c4ce0585)
 
 **ARQUITETURA**
+
 Foi utilizado o site draw.io para fazer o diagrama que representa a comunicação entre os componentes arduino, ESP e portal.
 
