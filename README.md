@@ -51,3 +51,5 @@ Foi utilizado o software Fritizing. Foi utilizado um divisor de tensão para dim
 
 Foi utilizado o site draw.io para fazer o diagrama que representa a comunicação entre os componentes arduino, ESP e portal.
 
+![image](https://github.com/user-attachments/assets/46a7f8a7-36a1-4785-9876-b53f1a98f64f)
+
