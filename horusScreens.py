@@ -12,6 +12,7 @@ import google.generativeai as genai
 import threading
 from tkinter import filedialog
 import sqlite3
+from dotenv import load_dotenv
 
 global Confirmar
 global mqtt_client
@@ -21,6 +22,7 @@ global Data_start
 global Data_finish
 
 mqtt_client = None
+load_dotenv('secreto.env')
 
 teclas_in = "teclado_espiao/teclas_in"
 teclas_out = "teclado_espiao/teclas_out"
@@ -221,7 +223,9 @@ def main_Screen():
     selected_routine = None
     selected_log = None
 
-    genai.configure(api_key="AIzaSyA0qpld5E47TpM4wsso-WNm1RUJLT0mobQ")
+    
+    api_key = os.getenv('API_KEY')
+    genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash')
 
     def set_topic_handler( topic, func):

@@ -7,3 +7,4 @@ python-multipart == 0.0.17
 uvicorn == 0.32.1
 paho-mqtt == 2.1.0
 google.generativeAI == 0.8.3
+python-dotenv == 1.0.1
